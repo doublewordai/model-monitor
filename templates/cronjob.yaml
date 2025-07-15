@@ -74,7 +74,7 @@ spec:
             - name: CRONITOR_BASE_URL
               {{- toYaml $.Values.telemetry.url | nindent 14 }}
             - name: MONITOR_NAME
-              value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.model-name) | quote }}
+              value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.model_name) | quote }}
             {{- with $.Values.cronJob.resources }}
             resources:
               {{- toYaml . | nindent 14 }}

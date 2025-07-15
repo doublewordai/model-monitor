@@ -20,13 +20,18 @@ jobs:
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Create charts directory structure
+        run: |
+          mkdir -p charts/model-monitor
+          cp -r . charts/model-monitor/
         
           
       - name: Run chart-releaser
         with:
           skip_existing: false
           pages_branch: helm-releases
-          charts_dir: .
+          charts_dir: charts
         uses: helm/chart-releaser-action@v1.6.0
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

@@ -1,0 +1,62 @@
+# Telemetry configuration
+telemetry:
+  # URL configuration - can be direct value or secretKeyRef
+  url:
+    # Option 1: Direct value
+    # value: "https://cronitor.link/p/your-key/your-group"
+    
+    # Option 2: From secret (default)
+    valueFrom:
+      secretKeyRef:
+        name: "cronitor-secret"
+        key: "cronitor-url"
+
+# OpenAI-compatible endpoints to monitor
+# Add your endpoints here or use values overrides
+# Valid model types are 'chat' and 'embedding'. 
+# Chat requests receive a single message containing 'test', with 1 output token requested. 
+# Embedding models receive a single message containing 'test'.
+endpoints: []
+  # Example:
+  # - name: "onwards-service"
+  #   url: "http://onwards-service"
+  #   models: 
+  #     - name: "embed"
+  #       type: "embedding"
+  #       monitor: "my-embedding-model"  # Optional: cronitor monitor name
+  #     - name: "generate"
+  #       type: "chat"
+  #       monitor: "my-chat-model"  # Optional: cronitor monitor name
+
+# CronJob configuration
+cronJob:
+  # Schedule for all monitoring jobs (every 5 minutes)
+  schedule: "*/5 * * * *"
+  
+  # Container image
+  image:
+    repository: "curlimages/curl"
+    tag: "latest"
+    pullPolicy: "IfNotPresent"
+  
+  # Job settings: if this is not never
+  restartPolicy: "Never"
+  
+  # Resource limits/requests
+  resources: {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 50m
+    #   memory: 64Mi
+
+  
+# Kubernetes metadata
+nameOverride: ""
+fullnameOverride: ""
+
+# Common labels
+commonLabels:
+  app.kubernetes.io/name: model-monitor
+  app.kubernetes.io/instance: model-monitor

@@ -8,7 +8,7 @@ metadata:
   labels:
     {{- include "openai-monitor.labels" $ | nindent 4 }}
     endpoint: {{ $endpoint.name }}
-    model: {{ $model.model-name }}
+    model: {{ $model.model_name }}
 spec:
   schedule: {{ $.Values.cronJob.schedule | quote }}
   jobTemplate:
@@ -18,7 +18,7 @@ spec:
           labels:
             {{- include "openai-monitor.selectorLabels" $ | nindent 12 }}
             endpoint: {{ $endpoint.name }}
-            model: {{ $model.model-name }}
+            model: {{ $model.model_name }}
         spec:
           containers:
           - name: monitor
@@ -39,11 +39,11 @@ spec:
               {{- if eq $model.type "chat" }}
               RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVER_URL/v1/chat/completions" \
                 -H "Content-Type: application/json" \
-                -d "{\"model\":\"{{ $model.model-name }}\",\"messages\":[{\"role\":\"user\",\"content\":\"test\"}],\"max_tokens\":1}")
+                -d "{\"model\":\"{{ $model.model_name }}\",\"messages\":[{\"role\":\"user\",\"content\":\"test\"}],\"max_tokens\":1}")
               {{- else if eq $model.type "embedding" }}
               RESPONSE=$(curl -s -w "%{http_code}" -X POST "$SERVER_URL/v1/embeddings" \
                 -H "Content-Type: application/json" \
-                -d "{\"model\":\"{{ $model.model-name }}\",\"input\":\"test\"}")
+                -d "{\"model\":\"{{ $model.model_name }}\",\"input\":\"test\"}")
               {{- end }}
               HTTP_CODE=$(echo "$RESPONSE" | tail -c 4)
               BODY=$(echo "$RESPONSE" | head -c -4)
@@ -51,12 +51,12 @@ spec:
               if [ "$HTTP_CODE" = "200" ]; then
                 echo "Sending success ping to Cronitor"
                 curl -s "$CRONITOR_BASE_URL/$MONITOR_NAME?state=complete&series=$SERIES_ID&status_code=0&env={{ $.Values.global.env | default "production" }}&host=$(hostname)" > /dev/null
-                echo "SUCCESS: {{ $endpoint.name }}/{{ $model.model-name }} responded successfully"
+                echo "SUCCESS: {{ $endpoint.name }}/{{ $model.model_name }} responded successfully"
                 exit 0
               else
                 echo "Sending failure ping to Cronitor"
                 curl -s "$CRONITOR_BASE_URL/$MONITOR_NAME?state=fail&series=$SERIES_ID&status_code=$HTTP_CODE&env={{ $.Values.global.env | default "production" }}&host=$(hostname)" > /dev/null
-                echo "FAILURE: {{ $endpoint.name }}/{{ $model.model-name }} failed with HTTP $HTTP_CODE"
+                echo "FAILURE: {{ $endpoint.name }}/{{ $model.model_name }} failed with HTTP $HTTP_CODE"
                 exit 1
               fi
               '
@@ -65,7 +65,7 @@ spec:
               if [ $? -eq 124 ]; then
                 echo "Sending timeout ping to Cronitor"
                 curl -s "$CRONITOR_BASE_URL/$MONITOR_NAME?state=fail&series=$SERIES_ID&status_code=124&message=Request%20timeout&env={{ $.Values.global.env | default "production" }}&host=$(hostname)" > /dev/null
-                echo "TIMEOUT: {{ $endpoint.name }}/{{ $model.model-name }} request timed out after 1m"
+                echo "TIMEOUT: {{ $endpoint.name }}/{{ $model.model_name }} request timed out after 1m"
                 exit 124
               fi
             env:

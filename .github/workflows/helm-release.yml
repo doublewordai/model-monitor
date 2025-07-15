@@ -1,37 +1,36 @@
-name: Release Charts
+name: Release Helm Chart to OCI
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'Chart.yaml'
+      - 'templates/**'
+      - 'values.yaml'
+  release:
+    types: [published]
 
 jobs:
   release:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
-      - name: Create charts directory structure
-        run: |
-          mkdir -p charts/model-monitor
-          cp -r . charts/model-monitor/ || true
-        
-          
-      - name: Run chart-releaser
+      - name: Install Helm
+        uses: azure/setup-helm@v4
         with:
-          skip_existing: false
-          pages_branch: helm-releases
-          charts_dir: charts
-        uses: helm/chart-releaser-action@v1.6.0
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          version: v3.14.0
+
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package and push Helm chart
+        run: |
+          helm package .
+          helm push *.tgz oci://ghcr.io/${{ github.repository_owner }}

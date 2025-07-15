@@ -24,7 +24,7 @@ jobs:
       - name: Create charts directory structure
         run: |
           mkdir -p charts/model-monitor
-          cp -r . charts/model-monitor/
+          cp -r . charts/model-monitor/ || true
         
           
       - name: Run chart-releaser

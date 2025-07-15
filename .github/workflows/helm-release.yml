@@ -24,7 +24,7 @@ jobs:
           
       - name: Run chart-releaser
         with:
-          skip_existing: true
+          skip_existing: false
           pages_branch: helm-releases
           charts_dir: .
         uses: helm/chart-releaser-action@v1.6.0

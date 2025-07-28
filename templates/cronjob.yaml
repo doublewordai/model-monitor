@@ -62,7 +62,7 @@ spec:
               '
               
               # Handle timeout case
-              if [ $? -eq 124 ]; then
+              if [ $? -eq 143 ]; then
                 echo "Sending timeout ping to Cronitor"
                 curl -s "$CRONITOR_BASE_URL/$MONITOR_NAME?state=fail&series=$SERIES_ID&status_code=124&message=Request%20timeout&env={{ $.Values.global.env | default "production" }}&host=$(hostname)" > /dev/null
                 echo "TIMEOUT: {{ $endpoint.name }}/{{ $model.model_name }} request timed out after 1m"

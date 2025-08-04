@@ -35,8 +35,8 @@ cronJob:
   
   # Container image
   image:
-    repository: "curlimages/curl"
-    tag: "latest"
+    repository: ghcr.io/doublewordai/model-monitor/ai-vitals
+    tag: ""
     pullPolicy: "IfNotPresent"
   
   # Job settings: if this is not never

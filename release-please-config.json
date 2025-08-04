@@ -1,0 +1,21 @@
+{
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "extra-files": [
+    {
+      "type": "toml",
+      "path": "ai-vitals/Cargo.toml",
+      "jsonpath": "$.version"
+    },
+    {
+      "type": "yaml",
+      "path": "helm/Chart.yaml",
+      "jsonpath": "$.version"
+    },
+    {
+      "type": "yaml",
+      "path": "helm/Chart.yaml",
+      "jsonpath": "$.appVersion"
+    }
+  ]
+}

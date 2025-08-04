@@ -1,0 +1,56 @@
+{{- range $endpoint := .Values.endpoints }}
+{{- range $model := $endpoint.models }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "openai-monitor.fullname" $ }}-{{ $endpoint.name }}-{{ $model.name }}
+  labels:
+    {{- include "openai-monitor.labels" $ | nindent 4 }}
+    endpoint: {{ $endpoint.name }}
+    model: {{ $model.model_name }}
+spec:
+  schedule: {{ $.Values.cronJob.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "openai-monitor.selectorLabels" $ | nindent 12 }}
+            endpoint: {{ $endpoint.name }}
+            model: {{ $model.model_name }}
+        spec:
+          containers:
+          - name: monitor
+            image: {{ $.Values.cronJob.image.repository }}:{{ $.Values.cronJob.image.tag | default $.Chart.AppVersion }}
+            imagePullPolicy: {{ $.Values.cronJob.image.pullPolicy }}
+            env:
+            - name: SERVER_URL
+              value: {{ $endpoint.url | quote }}
+            - name: CRONITOR_BASE_URL
+              {{- toYaml $.Values.telemetry.url | nindent 14 }}
+            - name: MONITOR_NAME
+              value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.model_name) | quote }}
+            {{- with $model.type }}
+            - name: ENDPOINT_TYPE
+              value: {{ $model.type | quote }}
+            {{- end }}
+            {{- with $model.model_name }}
+            - name: MODEL_NAME
+              value: {{ $model.model_name | quote }}
+            {{- end }}
+            {{- with $model.env }}
+            - name: APP_ENV
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $model.timeout_seconds }}
+            - name: TIMEOUT_SECONDS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with $.Values.cronJob.resources }}
+            resources:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+          restartPolicy: {{ $.Values.cronJob.restartPolicy }}
+{{- end }}
+{{- end }}

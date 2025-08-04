@@ -23,7 +23,7 @@ jobs:
         run: cargo publish --no-verify
 
   docker:
-    runs-on: depot-ubuntu-24.04
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
@@ -33,6 +33,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -54,6 +57,7 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ai-vitals:latest
             ghcr.io/${{ github.repository }}/ai-vitals:${{ steps.version.outputs.VERSION }}
+          platforms: linux/amd64,linux/arm64
 
   release-helm:
     needs: docker

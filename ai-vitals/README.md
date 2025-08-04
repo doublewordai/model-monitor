@@ -24,7 +24,7 @@ You can also run the CLI directly:
 ```bash
 cargo run --bin ai-vitals -- --cronitor-base-url "https://cronitor.link/p/your-key/your-group" \
   --server-url "http://my-service" \
-  --model "embed" \
+  --model-name "embed" \
   --endpoint-type "embedding" \
   --monitor "my-embedding-model"
 ```

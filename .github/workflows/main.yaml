@@ -19,6 +19,18 @@ jobs:
       - name: Run Tests
         working-directory: ai-vitals
         run: cargo test --verbose
+  
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lint Helm Chart
+        uses: helm/chart-testing-action@v3
+        with:
+          chart-dir: helm
+          helm-extra-args: --strict
 
   docker:
     needs: test

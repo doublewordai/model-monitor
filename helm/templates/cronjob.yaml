@@ -31,19 +31,23 @@ spec:
               {{- toYaml $.Values.telemetry.url | nindent 14 }}
             - name: MONITOR_NAME
               value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.model_name) | quote }}
+            {{- with $model.type }}
             - name: ENDPOINT_TYPE
               value: {{ $model.type | quote }}
+            {{- end }}
+            {{- with $model.model_name }}
             - name: MODEL_NAME
               value: {{ $model.model_name | quote }}
+            {{- end }}
             {{- with $model.env }}
             - name: APP_ENV
               value: {{ . | quote }}
             {{- end }}
             {{- with $model.timeout_seconds }}
-            {{- with $.Values.cronJob.resources }}
             - name: TIMEOUT_SECONDS
               value: {{ . | quote }}
             {{- end }}
+            {{- with $.Values.cronJob.resources }}
             resources:
               {{- toYaml . | nindent 14 }}
             {{- end }}

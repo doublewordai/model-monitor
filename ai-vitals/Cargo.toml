@@ -2,6 +2,12 @@
 name = "ai-vitals"
 version = "0.5.0"
 edition = "2024"
+description = "A tool to monitor LLM endpoints and report status to Cronitor."
+license = "MIT OR Apache-2.0"
+homepage = "https://doubleword.ai"
+repository = "https://github.com/doublewordai/model-monitor"
+keywords= ["LLM", "monitoring", "Cronitor", "OpenAI"]
+readme = "README.md"
 
 [dependencies]
 anyhow   = "1"

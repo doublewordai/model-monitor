@@ -26,5 +26,5 @@ cargo run --bin ai-vitals -- --cronitor-base-url "https://cronitor.link/p/your-k
   --server-url "http://my-service" \
   --model-name "embed" \
   --endpoint-type "embedding" \
-  --monitor "my-embedding-model"
+  --monitor-name "my-embedding-model"
 ```

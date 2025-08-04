@@ -90,7 +90,7 @@ impl CronitorClient {
     fn new(args: Args) -> Result<Self> {
         // ---------------- reqwest client ---------------------
         let client = Client::builder()
-            .timeout(Duration::from_secs(args.timeout_secs))
+            .timeout(Duration::from_secs(args.timeout_seconds))
             .build()
             .context("building reqwest client")?;
 

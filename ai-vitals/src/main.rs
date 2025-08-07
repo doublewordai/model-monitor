@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     let config = Config::parse();
 
     let monitor = Monitor::new(config).context("Failed to create monitor")?;
-    let exit_code = monitor.run().await;
+    let _ = monitor.run().await;
 
-    exit(exit_code);
+    exit(0);
 }

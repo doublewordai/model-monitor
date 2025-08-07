@@ -30,8 +30,8 @@ spec:
             - name: CRONITOR_BASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.telemetry.url.valueFrom.secretKeyRef.name }}
-                  key: {{ .Values.telemetry.url.valueFrom.secretKeyRef.key }}
+                  name: {{ $.Values.telemetry.url.valueFrom.secretKeyRef.name }}
+                  key: {{ $.Values.telemetry.url.valueFrom.secretKeyRef.key }}
             - name: MONITOR_NAME
               value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.name) | quote }}
             {{- with $model.type }}

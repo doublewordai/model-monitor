@@ -13,6 +13,7 @@ spec:
   schedule: {{ $.Values.cronJob.schedule | quote }}
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 300
       template:
         metadata:
           labels:

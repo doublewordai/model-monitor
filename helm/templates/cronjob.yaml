@@ -8,17 +8,18 @@ metadata:
   labels:
     {{- include "openai-monitor.labels" $ | nindent 4 }}
     endpoint: {{ $endpoint.name }}
-    model: {{ $model.model_name }}
+    model: {{ $model.name }}
 spec:
   schedule: {{ $.Values.cronJob.schedule | quote }}
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 300
       template:
         metadata:
           labels:
             {{- include "openai-monitor.selectorLabels" $ | nindent 12 }}
             endpoint: {{ $endpoint.name }}
-            model: {{ $model.model_name }}
+            model: {{ $model.name }}
         spec:
           containers:
           - name: monitor
@@ -28,16 +29,19 @@ spec:
             - name: SERVER_URL
               value: {{ $endpoint.url | quote }}
             - name: CRONITOR_BASE_URL
-              {{- toYaml $.Values.telemetry.url | nindent 14 }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.telemetry.url.valueFrom.secretKeyRef.name }}
+                  key: {{ $.Values.telemetry.url.valueFrom.secretKeyRef.key }}
             - name: MONITOR_NAME
-              value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.model_name) | quote }}
+              value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.name) | quote }}
             {{- with $model.type }}
             - name: ENDPOINT_TYPE
               value: {{ $model.type | quote }}
             {{- end }}
-            {{- with $model.model_name }}
+            {{- with $model.name }}
             - name: MODEL_NAME
-              value: {{ $model.model_name | quote }}
+              value: {{ $model.name | quote }}
             {{- end }}
             {{- with $model.env }}
             - name: APP_ENV

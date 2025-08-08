@@ -2,10 +2,6 @@
 telemetry:
   # URL configuration - can be direct value or secretKeyRef
   url:
-    # Option 1: Direct value
-    # value: "https://cronitor.link/p/your-key/your-group"
-    
-    # Option 2: From secret (default)
     valueFrom:
       secretKeyRef:
         name: "cronitor-secret"

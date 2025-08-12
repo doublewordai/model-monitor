@@ -1,11 +1,7 @@
 # Telemetry configuration
 telemetry:
   # URL configuration - can be direct value or secretKeyRef
-  url:
-    valueFrom:
-      secretKeyRef:
-        name: "cronitor-secret"
-        key: "cronitor-url"
+    secretName: "cronitor-secret"
 
 # OpenAI-compatible endpoints to monitor
 # Add your endpoints here or use values overrides

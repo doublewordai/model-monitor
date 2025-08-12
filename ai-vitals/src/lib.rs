@@ -56,6 +56,10 @@ pub struct Config {
     #[arg(long, env = "CRONITOR_BASE_URL")]
     pub cronitor_base_url: String,
 
+    /// Base URL for Cronitor, e.g. https://cronitor.link
+    #[arg(long, env = "CRONITOR_API_KEY")]
+    pub cronitor_api_key: Option<String>,
+
     /// Monitor name / code in Cronitor
     #[arg(long, env = "MONITOR_NAME")]
     pub monitor_name: String,
@@ -79,18 +83,34 @@ pub struct Config {
     /// Request timeout in seconds (default 10)
     #[arg(long, env = "TIMEOUT_SECONDS", default_value_t = 10)]
     pub timeout_seconds: u64,
+
+    /// Request timeout in seconds (default 10)
+    #[arg(long, env = "SCHEDULE")]
+    pub schedule: Option<String>,
+
+    /// Request timeout in seconds (default 10)
+    #[arg(long, env = "MIN_SUCCESS_FREQ")]
+    pub min_success_freq: Option<u8>,
+
+    /// Request timeout in seconds (default 10)
+    #[arg(long, env = "MONITOR_GROUP")]
+    pub monitor_group: Option<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             cronitor_base_url: "https://cronitor.link".to_string(),
+            cronitor_api_key: None,
             monitor_name: "test-monitor".to_string(),
             server_url: "https://api.openai.com".to_string(),
             endpoint_type: EndpointType::ChatCompletion,
             model_name: "gpt-4".to_string(),
             env: "test".to_string(),
             timeout_seconds: 10,
+            schedule: Option::from("*/5 * * * *".to_string()),
+            min_success_freq: Some(60),
+            monitor_group: None,
         }
     }
 }
@@ -158,9 +178,80 @@ impl CronitorClient {
     pub async fn ping(&self, state: PingState, status_code: u16, message: Option<&str>) {
         let url = self.build_ping_url(state, status_code, message);
 
-        if let Err(e) = self.client.get(url).send().await {
-            error!("Failed to send ping to Cronitor: {e}");
+        match self.client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                // success: optionally peek at body for debugging
+                info!("Cronitor ping OK");
+            }
+            Ok(resp) => {
+                // non-2xx: log status + response body (often has the reason)
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default(); // consumes resp
+                error!("Cronitor ping non-2xx {status}: {body}");
+            }
+            Err(e) => {
+                // request failed before a response was received
+                error!("Failed to send ping to Cronitor: {e}");
+            }
         }
+
+        if state == PingState::Run {
+            // The above handles the ping. We also want to update the created monitor if we can.
+
+            let Some(api_key) = self.config.cronitor_api_key.as_deref() else {
+                info!("No api key, skipping monitor enrichment");
+                return; // no key => skip update
+            };
+
+            match self
+                .client
+                .put("https://cronitor.io/api/monitors")
+                .basic_auth(api_key, Some("")) // username = API key, blank password
+                .json(&self.get_monitor_update_payload())
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    info!("Monitor enriched successful");
+                }
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        error!(
+                            "Monitor enrichment failed {}: {}",
+                            resp.status(),
+                            resp.text().await.unwrap_or_default()
+                        );
+                    }
+                }
+                Err(err) => {
+                    error!("Failed to enrich Cronitor monitor: {err}");
+                }
+            }
+        }
+    }
+
+    pub fn get_monitor_update_payload(&self) -> serde_json::Value {
+        let mut monitor = serde_json::Map::new();
+        monitor.insert("type".into(), json!("job"));
+        monitor.insert("key".into(), json!(self.config.monitor_name));
+
+        if let Some(group) = self.config.monitor_group.clone() {
+            monitor.insert("group".into(), json!(group));
+        }
+
+        // always include the duration assertion
+        let mut assertions: Vec<String> = vec![format!(
+            "metric.duration < {}s",
+            self.config.timeout_seconds * 2
+        )];
+
+        if let (Some(min), Some(s)) = (self.config.min_success_freq, self.config.schedule.clone()) {
+            assertions.push(format!("job.completes < {} minute", min));
+            monitor.insert("schedule".into(), json!(s));
+        }
+        monitor.insert("assertions".into(), json!(assertions));
+
+        json!({ "monitors": [serde_json::Value::Object(monitor)] })
     }
 }
 

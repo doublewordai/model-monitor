@@ -67,8 +67,16 @@ spec:
               - name: SCHEDULE
                 value: {{ . | quote }}
               {{- end }}
-              {{- with $model.modelGroup }}
-              - name: MODEL_GROUP
+              { { - with $model.consecutiveFailures } }
+              - name: CONSECUTIVE_FAILURES_FOR_ALERT
+                value: { { . | quote } }
+              { { - end } }
+              { { - with $model.consecutiveMissing } }
+              - name: CONSECUTIVE_MISSING_FOR_ALERT
+                value: { { . | quote } }
+              { { - end } }
+              {{- with $model.monitorGroup }}
+              - name: MONITOR_GROUP
                 value: {{ . | quote }}
               {{- end }}
             {{- with $.Values.cronJob.resources }}

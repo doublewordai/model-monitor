@@ -84,15 +84,30 @@ pub struct Config {
     #[arg(long, env = "TIMEOUT_SECONDS", default_value_t = 10)]
     pub timeout_seconds: u64,
 
-    /// Request timeout in seconds (default 10)
-    #[arg(long, env = "SCHEDULE")]
-    pub schedule: Option<String>,
+    
+    /// The below all require an API key to be set to take effect.
 
-    /// Request timeout in seconds (default 10)
+    /// minFreqRequiredMins catches inactive alerts - if an alert starts but never completes, 
+    /// it'll be marked as inactive by Cronitor. To force this into raising an alert,
+    /// we require a successful ping once per any minFreqRequiredMins period. 
     #[arg(long, env = "MIN_SUCCESS_FREQ")]
     pub min_success_freq: Option<u8>,
+    
+    
+    /// Which schedule to display in the frontend and to guide CONSECUTIVE_FAILURES_FOR_ALERT.
+    #[arg(long, env = "SCHEDULE")]
+    pub schedule: Option<String>,
+    
+    /// Optional: how many failed pings are needed to trigger an alert. Cronitor assumes 1 if unset.
+    #[arg(long, env = "CONSECUTIVE_FAILURES_FOR_ALERT")]
+    pub consecutive_failures: Option<u8>,
 
-    /// Request timeout in seconds (default 10)
+    /// Optional: how many missing pings are needed to trigger an alert. Cronitor disables this
+    /// unless specified here as > 0. Requires schedule to be set.
+    #[arg(long, env = "CONSECUTIVE_MISSING_FOR_ALERT")]
+    pub consecutive_missing: Option<u8>,
+
+    /// Optional: Group to put monitor in, mostly for frontend viewing.
     #[arg(long, env = "MONITOR_GROUP")]
     pub monitor_group: Option<String>,
 }
@@ -109,8 +124,10 @@ impl Default for Config {
             env: "test".to_string(),
             timeout_seconds: 10,
             schedule: Option::from("*/5 * * * *".to_string()),
+            consecutive_failures: Some(1),
             min_success_freq: Some(60),
             monitor_group: None,
+            consecutive_missing: Some(1),
         }
     }
 }
@@ -235,6 +252,19 @@ impl CronitorClient {
         monitor.insert("type".into(), json!("job"));
         monitor.insert("key".into(), json!(self.config.monitor_name));
 
+        if let Some(consecutive_failures) = self.config.consecutive_failures.clone() {
+            monitor.insert("failure_tolerance".into(), json!(consecutive_failures));
+        }
+
+        if let Some(schedule) = self.config.schedule.clone() {
+            monitor.insert("schedule".into(), json!(schedule));
+        }
+
+        
+        if let (Some(consecutive_missing), Some(_)) = (self.config.consecutive_missing, self.config.schedule.clone()) {
+            monitor.insert("schedule_tolerance".into(), json!(consecutive_missing));
+        }
+        
         if let Some(group) = self.config.monitor_group.clone() {
             monitor.insert("group".into(), json!(group));
         }
@@ -245,9 +275,8 @@ impl CronitorClient {
             self.config.timeout_seconds * 2
         )];
 
-        if let (Some(min), Some(s)) = (self.config.min_success_freq, self.config.schedule.clone()) {
-            assertions.push(format!("job.completes < {} minute", min));
-            monitor.insert("schedule".into(), json!(s));
+        if let Some(min_success_freq) = self.config.min_success_freq.clone() {
+            assertions.push(format!("job.completes < {} minute", min_success_freq));
         }
         monitor.insert("assertions".into(), json!(assertions));
 

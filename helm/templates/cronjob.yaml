@@ -67,14 +67,14 @@ spec:
               - name: SCHEDULE
                 value: {{ . | quote }}
               {{- end }}
-              { { - with $model.consecutiveFailures } }
+              {{- with $model.consecutiveFailures }}
               - name: CONSECUTIVE_FAILURES_FOR_ALERT
-                value: { { . | quote } }
-              { { - end } }
-              { { - with $model.consecutiveMissing } }
+                value: {{ . | quote }}
+              {{- end }}
+              {{- with $model.consecutiveMissing }}
               - name: CONSECUTIVE_MISSING_FOR_ALERT
-                value: { { . | quote } }
-              { { - end } }
+                value: {{ . | quote }}
+              {{- end }}
               {{- with $model.monitorGroup }}
               - name: MONITOR_GROUP
                 value: {{ . | quote }}

@@ -314,11 +314,13 @@ impl LLMProbe {
             EndpointType::ChatCompletion => json!({
                 "model": self.config.model_name,
                 "messages": [{ "role": "user", "content": "test" }],
-                "max_tokens": 1
+                "max_tokens": 1,
+                "extra_body": {"priority": -100}
             }),
             EndpointType::Embedding => json!({
                 "model": self.config.model_name,
-                "input": "test"
+                "input": "test",
+                "extra_body": {"priority": -100}
             }),
         }
     }

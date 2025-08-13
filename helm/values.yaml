@@ -1,11 +1,7 @@
 # Telemetry configuration
 telemetry:
-  # URL configuration - can be direct value or secretKeyRef
-  url:
-    valueFrom:
-      secretKeyRef:
-        name: "cronitor-secret"
-        key: "cronitor-url"
+  # URL configuration - api key also goes here for updating monitors
+    secretName: "cronitor-secret"
 
 # OpenAI-compatible endpoints to monitor
 # Add your endpoints here or use values overrides
@@ -23,6 +19,14 @@ endpoints: []
   #     - name: "generate"
   #       type: "chat"
   #       monitor: "my-chat-model"  # Optional: cronitor monitor name
+  #       monitorGroup: "group1" # Optional: group for monitor to go in
+  #       schedule: "*/5 * * * *" # Optional: displays the schedule on the frontend
+  #       consecutiveFailures: 1 # Optional: how many failed pings are needed to trigger an alert.
+  #       consecutiveMissing: 1 # Optional: how many missing pings are needed to trigger an alert.
+  #       minFreqRequiredMins: 60
+
+# minFreqRequiredMins catches inactive alerts - if an alert starts but never completes, it'll be marked as inactive by
+# Cronitor. To force this into raising an alert, we require a successful ping once per any minFreqRequiredMins period.
 
 # CronJob configuration
 cronJob:

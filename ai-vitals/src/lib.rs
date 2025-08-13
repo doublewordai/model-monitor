@@ -508,7 +508,8 @@ mod tests {
         let expected = json!({
             "model": "a-piece-of-cheese",
             "messages": [{ "role": "user", "content": "test" }],
-            "max_tokens": 1
+            "max_tokens": 1,
+            "extra_body": {"priority": -100}
         });
 
         assert_eq!(payload, expected);
@@ -526,7 +527,8 @@ mod tests {
         let payload = probe.build_payload();
         let expected = json!({
             "model": "text-embedding-ada-002",
-            "input": "test"
+            "input": "test",
+            "extra_body": {"priority": -100}
         });
 
         assert_eq!(payload, expected);
@@ -543,7 +545,8 @@ mod tests {
                 .json_body(json!({
                     "model": "gpt-4",
                     "messages": [{ "role": "user", "content": "test" }],
-                    "max_tokens": 1
+                    "max_tokens": 1,
+                    "extra_body": {"priority": -100}
                 }));
             then.status(200).json_body(json!({
                 "choices": [{"message": {"role": "assistant", "content": "Hello"}}]

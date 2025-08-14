@@ -20,7 +20,6 @@ endpoints: []
   #       type: "chat"
   #       monitor: "my-chat-model"  # Optional: cronitor monitor name
   #       monitorGroup: "group1" # Optional: group for monitor to go in
-  #       schedule: "*/5 * * * *" # Optional: displays the schedule on the frontend
   #       consecutiveFailures: 1 # Optional: how many failed pings are needed to trigger an alert.
   #       consecutiveMissing: 1 # Optional: how many missing pings are needed to trigger an alert.
   #       minFreqRequiredMins: 60

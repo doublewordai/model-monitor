@@ -33,14 +33,14 @@ spec:
                   secretKeyRef:
                     name: {{ required "telemetry.secretName is required" $.Values.telemetry.secretName | quote }}
                     key: cronitor-url
-                {{- with $.Values.telemetry.secretName }}
+              {{- with $.Values.telemetry.secretName }}
               - name: CRONITOR_API_KEY
                 valueFrom:
                   secretKeyRef:
                     name: {{ . | quote }}
                     key: cronitor-api-key
                     optional: true
-                {{- end }}
+              {{- end }}
               - name: MONITOR_NAME
                 value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.name) | quote }}
               {{- with $model.type }}
@@ -63,7 +63,7 @@ spec:
               - name: MIN_SUCCESS_FREQ
                 value: {{ . | quote }}
               {{- end }}
-              {{- with $model.schedule }}
+              {{- with $.Values.cronJob.schedule }}
               - name: SCHEDULE
                 value: {{ . | quote }}
               {{- end }}

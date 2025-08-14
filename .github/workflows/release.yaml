@@ -6,6 +6,7 @@ on:
 
 jobs:
   publish-crate:
+    if: startsWith(github.event.release.tag_name, 'ai-vitals-')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,6 +24,7 @@ jobs:
         run: cargo publish --no-verify
 
   docker:
+    if: startsWith(github.event.release.tag_name, 'ai-vitals-')
     runs-on: ubuntu-latest
 
     permissions:
@@ -43,7 +45,11 @@ jobs:
 
       - name: Extract version from release tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          # Remove refs/tags/ai-vitals- prefix and v prefix if present
+          VERSION=${GITHUB_REF#refs/tags/ai-vitals-}
+          VERSION=${VERSION#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
@@ -56,6 +62,7 @@ jobs:
             ghcr.io/${{ github.repository }}/ai-vitals:${{ steps.version.outputs.VERSION }}
 
   release-helm:
+    if: startsWith(github.event.release.tag_name, 'model-monitor-')
     needs: docker
     runs-on: ubuntu-latest
     permissions:

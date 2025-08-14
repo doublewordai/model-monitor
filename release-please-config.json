@@ -1,21 +1,14 @@
 {
-  "release-type": "simple",
-  "include-component-in-tag": false,
-  "extra-files": [
-    {
-      "type": "toml",
-      "path": "ai-vitals/Cargo.toml",
-      "jsonpath": "$.version"
+  "packages": {
+    "helm": {
+      "release-type": "helm",
+      "package-name": "model-monitor",
+      "include-component-in-tag": true
     },
-    {
-      "type": "yaml",
-      "path": "helm/Chart.yaml",
-      "jsonpath": "$.version"
-    },
-    {
-      "type": "yaml",
-      "path": "helm/Chart.yaml",
-      "jsonpath": "$.appVersion"
+    "ai-vitals": {
+      "release-type": "rust",
+      "package-name": "ai-vitals",
+      "include-component-in-tag": true
     }
-  ]
+  }
 }

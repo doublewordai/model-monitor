@@ -63,7 +63,6 @@ jobs:
 
   release-helm:
     if: startsWith(github.event.release.tag_name, 'model-monitor-')
-    needs: docker
     runs-on: ubuntu-latest
     permissions:
       contents: read

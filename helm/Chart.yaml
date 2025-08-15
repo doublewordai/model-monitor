@@ -3,4 +3,4 @@ name: model-monitor
 description: A Helm chart for monitoring OpenAI-compatible servers with Cronitor
 type: application
 version: 1.0.0
-appVersion: "0.6.0"
+appVersion: "0.7.0"

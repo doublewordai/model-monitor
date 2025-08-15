@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.0...model-monitor-v1.0.1) (2025-08-15)
+
+
+### Bug Fixes
+
+* increment version to trigger release ([97572e7](https://github.com/doublewordai/model-monitor/commit/97572e7835a89cfeb184c7b3e344f6ea5214a0eb))
+
 ## 1.0.0 (2025-08-14)
 
 

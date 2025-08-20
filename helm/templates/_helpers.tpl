@@ -52,20 +52,3 @@ Selector labels
 app.kubernetes.io/name: {{ include "openai-monitor.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
-
-{{/*
-Sanitize CronJob name to comply with Kubernetes naming requirements
-- Replace underscores with hyphens
-- Replace any non-alphanumeric characters (except hyphens and dots) with hyphens
-- Convert to lowercase
-- Ensure it starts and ends with alphanumeric characters
-- Truncate to 52 characters max (leaving room for suffixes)
-*/}}
-{{- define "openai-monitor.sanitizeCronJobName" -}}
-{{- $name := . | lower | replace "_" "-" | regexReplaceAll "[^a-z0-9.-]" "-" | regexReplaceAll "^[^a-z0-9]+" "" | regexReplaceAll "[^a-z0-9]+$" "" | regexReplaceAll "-+" "-" | trunc 52 | trimSuffix "-" -}}
-{{- if not $name -}}
-{{- "default" -}}
-{{- else -}}
-{{- $name -}}
-{{- end -}}
-{{- end }}

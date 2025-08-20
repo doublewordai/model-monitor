@@ -4,7 +4,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "openai-monitor.fullname" $ }}-{{ $endpoint.name }}-{{ $model.name }}
+  name: {{ printf "%s-%s-%s" (include "openai-monitor.fullname" $) $endpoint.name $model.name | include "openai-monitor.sanitizeCronJobName" }}
   labels:
     {{- include "openai-monitor.labels" $ | nindent 4 }}
     endpoint: {{ $endpoint.name }}

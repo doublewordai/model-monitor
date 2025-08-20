@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.1...model-monitor-v1.0.2) (2025-08-20)
+
+
+### Bug Fixes
+
+* clean and check cron job name ([b0b162b](https://github.com/doublewordai/model-monitor/commit/b0b162bd5f1f4f609715b70d9f4251eb0a3a5305))
+
 ## [1.0.1](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.0...model-monitor-v1.0.1) (2025-08-15)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.2...model-monitor-v1.0.3) (2025-08-20)
+
+
+### Bug Fixes
+
+* bugs in cleaning name ([2756c53](https://github.com/doublewordai/model-monitor/commit/2756c535d3a26e8c5fce5381cd76d58b63be5e1c))
+
 ## [1.0.2](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.1...model-monitor-v1.0.2) (2025-08-20)
 
 

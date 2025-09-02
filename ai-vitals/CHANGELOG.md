@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.7.0...ai-vitals-v0.7.1) (2025-09-02)
+
+
+### Bug Fixes
+
+* priority should be set at base level if its raw http ([159e0c3](https://github.com/doublewordai/model-monitor/commit/159e0c32b6ba7cc5f782972db0e2fea0d483682a))
+
 ## [0.7.0](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.6.0...ai-vitals-v0.7.0) (2025-08-14)
 
 

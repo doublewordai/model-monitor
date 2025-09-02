@@ -315,12 +315,12 @@ impl LLMProbe {
                 "model": self.config.model_name,
                 "messages": [{ "role": "user", "content": "test" }],
                 "max_tokens": 1,
-                "extra_body": {"priority": -100}
+                "priority": -100
             }),
             EndpointType::Embedding => json!({
                 "model": self.config.model_name,
                 "input": "test",
-                "extra_body": {"priority": -100}
+                "priority": -100
             }),
         }
     }
@@ -509,7 +509,7 @@ mod tests {
             "model": "a-piece-of-cheese",
             "messages": [{ "role": "user", "content": "test" }],
             "max_tokens": 1,
-            "extra_body": {"priority": -100}
+            "priority": -100
         });
 
         assert_eq!(payload, expected);
@@ -528,7 +528,7 @@ mod tests {
         let expected = json!({
             "model": "text-embedding-ada-002",
             "input": "test",
-            "extra_body": {"priority": -100}
+            "priority": -100
         });
 
         assert_eq!(payload, expected);
@@ -546,7 +546,7 @@ mod tests {
                     "model": "gpt-4",
                     "messages": [{ "role": "user", "content": "test" }],
                     "max_tokens": 1,
-                    "extra_body": {"priority": -100}
+                    "priority": -100
                 }));
             then.status(200).json_body(json!({
                 "choices": [{"message": {"role": "assistant", "content": "Hello"}}]

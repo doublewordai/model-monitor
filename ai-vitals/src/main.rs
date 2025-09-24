@@ -1,4 +1,4 @@
-use ai_vitals::{Config, Monitor};
+use ai_vitals::{Monitor, cli::Config};
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::process::exit;

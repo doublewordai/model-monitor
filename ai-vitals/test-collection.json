@@ -1,0 +1,198 @@
+{
+  "info": {
+    "name": "Test API Collection",
+    "description": "Minimal collection for unit tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response time is less than 1000ms\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Simple health check endpoint"
+      }
+    },
+    {
+      "name": "Get User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response has user id\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('id');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/users/123",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "users", "123"]
+        },
+        "description": "Get a specific user by ID"
+      }
+    },
+    {
+      "name": "Create Resource",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test(\"Response has created resource\", function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('id');",
+              "    pm.expect(jsonData.name).to.eql('Test Resource');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Set a timestamp for unique naming",
+              "pm.collectionVariables.set('timestamp', new Date().getTime());"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Test Resource\",\n    \"description\": \"Created at {{timestamp}}\",\n    \"active\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/resources",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "resources"]
+        },
+        "description": "Create a new resource"
+      }
+    },
+    {
+      "name": "Delete Resource",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 204\", function () {",
+              "    pm.response.to.have.status(204);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{api_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/resources/456",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "resources", "456"]
+        },
+        "description": "Delete a resource"
+      }
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test - track any failures",
+          "if (pm.response.code >= 400) {",
+          "    pm.collectionVariables.set('has_errors', true);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "timestamp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "has_errors",
+      "value": "false",
+      "type": "string"
+    }
+  ]
+}

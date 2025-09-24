@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.7.1...ai-vitals-v0.8.0) (2025-09-24)
+
+
+### Features
+
+* add newman ([#13](https://github.com/doublewordai/model-monitor/issues/13)) ([515f99d](https://github.com/doublewordai/model-monitor/commit/515f99d1c5ba39cbe6642b34048e5c69aef8a7a0))
+
 ## [0.7.1](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.7.0...ai-vitals-v0.7.1) (2025-09-02)
 
 

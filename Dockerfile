@@ -17,9 +17,11 @@ COPY ai-vitals/src ./src
 # Build the application
 RUN cargo build --release
 
-# Runtime stage - use Ubuntu for better compatibility
-FROM ubuntu:22.04
+FROM node
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Install newman globally
+RUN npm install -g newman
 
 # Copy the binary from builder stage
 COPY --from=builder /app/target/release/ai-vitals /app/ai-vitals

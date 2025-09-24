@@ -1,16 +1,16 @@
 //! # ai-vitals
 //!
 //! A monitoring tool for LLM endpoints that reports status to Cronitor.
-//! 
+//!
 //! The library is split into a few main components:
-//! 
+//!
 //! * monitor: Entrypoint for running the monitoring process. It orchestrates the probing of endpoints and exporting results.
 //! * cli: Handles command-line argument parsing and configuration setup.
 //! * probes: Contains implementations for probing different types of endpoints, such as OpenAI chat completions and embeddings.
 //! * exporters: Contains implementations for exporting monitoring results to different services, currently only Cronitor.
-//! 
+//!
 //! ## Running Tests
-//! 
+//!
 //! ```bash
 //! cargo test
 //! ```
@@ -21,14 +21,16 @@ use tracing::{error, info};
 #[derive(Debug, PartialEq)]
 pub enum ProbeResult {
     Success,
-    HttpError(u16),
+    Error(u16),
     Timeout,
     NetworkError(String),
 }
 
 #[async_trait::async_trait]
 pub trait Probe {
-    fn new(config: cli::Config) -> Result<Self> where Self: std::marker::Sized;
+    fn new(config: cli::Config) -> Result<Self>
+    where
+        Self: std::marker::Sized;
     async fn probe(&self) -> ProbeResult;
 }
 
@@ -52,12 +54,14 @@ impl PingState {
 
 #[async_trait::async_trait]
 pub trait Export {
-    fn new(config: cli::Config) -> Result<Self> where Self: std::marker::Sized;
+    fn new(config: cli::Config) -> Result<Self>
+    where
+        Self: std::marker::Sized;
     async fn ping(&self, state: PingState, status_code: u16, message: Option<&str>);
 }
 
 /// Main monitoring orchestrator.
-/// 
+///
 /// It holds the exporter and probe implementations and runs the monitoring process.
 pub struct Monitor {
     exporter: Box<dyn Export>,
@@ -66,22 +70,14 @@ pub struct Monitor {
 
 impl Monitor {
     pub fn new(config: cli::Config) -> Result<Self> {
-        let exporter = exporters::Cronitor::new(config.clone())?;
-        let llm_probe = match config.endpoint_type {
-            probes::Type::OpenAIChatCompletion | probes::Type::OpenAIEmbedding => {
-                probes::OpenAI::new(config.clone())?
-            }
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Unsupported endpoint type: {:?}",
-                    config.endpoint_type
-                ))
-            }
-        };
-
         Ok(Monitor {
-            exporter: Box::new(exporter),
-            probe: Box::new(llm_probe),
+            exporter: Box::new(exporters::Cronitor::new(config.clone())?),
+            probe: match config.endpoint_type {
+                probes::Type::OpenAIChatCompletion | probes::Type::OpenAIEmbedding => {
+                    Box::new(probes::OpenAI::new(config.clone())?)
+                }
+                probes::Type::Newman => Box::new(probes::Newman::new(config.clone())?),
+            },
         })
     }
 
@@ -94,17 +90,13 @@ impl Monitor {
         match self.probe.probe().await {
             ProbeResult::Success => {
                 info!("Sending success ping to Cronitor");
-                self.exporter
-                    .ping(PingState::Complete, 0, None)
-                    .await;
+                self.exporter.ping(PingState::Complete, 0, None).await;
                 info!("SUCCESS: Endpoint responded successfully");
                 0
             }
-            ProbeResult::HttpError(status_code) => {
+            ProbeResult::Error(status_code) => {
                 info!("Sending failure ping to Cronitor");
-                self.exporter
-                    .ping(PingState::Fail, status_code, None)
-                    .await;
+                self.exporter.ping(PingState::Fail, status_code, None).await;
                 error!("FAILURE: Endpoint failed with HTTP {status_code}");
                 1
             }
@@ -155,7 +147,7 @@ pub mod cli {
         pub monitor_name: String,
 
         /// Base URL of the server to probe, e.g. https://my-openai-proxy
-        #[arg(long, env = "SERVER_URL")]
+        #[arg(long, env = "SERVER_URL", default_value = "http://localhost:8000/v1")]
         pub server_url: String,
 
         /// Optional: Probe type to use for the probe. Currently only "llm" is supported.
@@ -163,7 +155,7 @@ pub mod cli {
         pub endpoint_type: ProbeType,
 
         /// Name of the model to query
-        #[arg(long, env = "MODEL_NAME")]
+        #[arg(long, env = "MODEL_NAME", default_value = "gpt-4")]
         pub model_name: String,
 
         /// Environment descriptor (defaults to "production")
@@ -173,19 +165,19 @@ pub mod cli {
         /// Request timeout in seconds (default 10)
         #[arg(long, env = "TIMEOUT_SECONDS", default_value_t = 10)]
         pub timeout_seconds: u64,
-        
+
         /// The below all require an API key to be set to take effect.
 
-        /// minFreqRequiredMins catches inactive alerts - if an alert starts but never completes, 
+        /// minFreqRequiredMins catches inactive alerts - if an alert starts but never completes,
         /// it'll be marked as inactive by Cronitor. To force this into raising an alert,
-        /// we require a successful ping once per any minFreqRequiredMins period. 
+        /// we require a successful ping once per any minFreqRequiredMins period.
         #[arg(long, env = "MIN_SUCCESS_FREQ")]
         pub min_success_freq: Option<u8>,
-        
+
         /// Which schedule to display in the frontend and to guide CONSECUTIVE_FAILURES_FOR_ALERT.
         #[arg(long, env = "SCHEDULE")]
         pub schedule: Option<String>,
-        
+
         /// Optional: how many failed pings are needed to trigger an alert. Cronitor assumes 1 if unset.
         #[arg(long, env = "CONSECUTIVE_FAILURES_FOR_ALERT")]
         pub consecutive_failures: Option<u8>,
@@ -198,6 +190,15 @@ pub mod cli {
         /// Optional: Group to put monitor in, mostly for frontend viewing.
         #[arg(long, env = "MONITOR_GROUP")]
         pub monitor_group: Option<String>,
+
+        /// Newman-specific options
+        // Path to the Postman collection JSON file
+        #[arg(long, env = "COLLECTION_PATH", default_value = "collection.json")]
+        pub collection_path: String,
+
+        // Path to the Postman environment JSON file
+        #[arg(long, env = "ENVIRONMENT_PATH", default_value = None)]
+        pub environment_path: Option<String>,
     }
 
     impl Default for Config {
@@ -216,6 +217,8 @@ pub mod cli {
                 min_success_freq: Some(60),
                 monitor_group: None,
                 consecutive_missing: Some(1),
+                collection_path: "collection.json".to_string(),
+                environment_path: None,
             }
         }
     }
@@ -232,7 +235,7 @@ pub mod exporters {
 
     use crate::Export;
 
-    use super::{cli::Config, PingState};
+    use super::{PingState, cli::Config};
 
     /// Cronitor client to send pings
     pub struct Cronitor {
@@ -358,11 +361,13 @@ pub mod exporters {
                 monitor.insert("schedule".into(), json!(schedule));
             }
 
-            
-            if let (Some(consecutive_missing), Some(_)) = (self.config.consecutive_missing, self.config.schedule.clone()) {
+            if let (Some(consecutive_missing), Some(_)) = (
+                self.config.consecutive_missing,
+                self.config.schedule.clone(),
+            ) {
                 monitor.insert("schedule_tolerance".into(), json!(consecutive_missing));
             }
-            
+
             if let Some(group) = self.config.monitor_group.clone() {
                 monitor.insert("group".into(), json!(group));
             }
@@ -387,10 +392,13 @@ pub mod probes {
     use anyhow::{Context, Result};
     use reqwest::Client;
     use serde_json::json;
-    use std::time::Duration;
-    use tracing::info;
+    use std::{
+        process::{Command, Stdio},
+        time::Duration,
+    };
+    use tracing::{error, info};
 
-    use super::{cli::Config, ProbeResult};
+    use super::{ProbeResult, cli::Config};
 
     // Type of LLM endpoint to probe
     #[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
@@ -446,7 +454,7 @@ pub mod probes {
                     if status.is_success() {
                         ProbeResult::Success
                     } else {
-                        ProbeResult::HttpError(status.as_u16())
+                        ProbeResult::Error(status.as_u16())
                     }
                 }
                 Err(e) if e.is_timeout() => ProbeResult::Timeout,
@@ -484,11 +492,67 @@ pub mod probes {
             }
         }
     }
+
+    /// Newman probe functionality
+    pub struct Newman {
+        config: Config,
+    }
+
+    /// LLM probe implementation
+    #[async_trait::async_trait]
+    impl super::Probe for Newman {
+        fn new(config: Config) -> Result<Self> {
+            Ok(Newman { config })
+        }
+
+        async fn probe(&self) -> ProbeResult {
+            let mut newman = Command::new("newman");
+
+            newman.arg("run").arg(&self.config.collection_path);
+
+            if let Some(env_path) = &self.config.environment_path {
+                newman.arg("-e").arg(env_path);
+            }
+
+            if let Ok(child) = newman
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .context("spawning newman process")
+            {
+                match child.wait_with_output() {
+                    Ok(output) => {
+                        let status = output.status;
+                        let body = String::from_utf8_lossy(&output.stdout);
+                        info!("--- Newman stdout ---\n {body}");
+
+                        if status.success() {
+                            ProbeResult::Success
+                        } else {
+                            ProbeResult::Error(1)
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to wait for newman process: {e}");
+                        ProbeResult::Error(1)
+                    }
+                }
+            } else {
+                error!("Failed to start newman process");
+                ProbeResult::Error(1)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{exporters::Cronitor, probes::{OpenAI, Type as EndpointType}, cli::Config, Export, Probe, Monitor, PingState, ProbeResult};
+    use super::{
+        Export, Monitor, PingState, Probe, ProbeResult,
+        cli::Config,
+        exporters::Cronitor,
+        probes::{OpenAI, Type as EndpointType},
+    };
     use httpmock::prelude::*;
     use serde_json::json;
 
@@ -668,7 +732,7 @@ mod tests {
         let result = probe.probe().await;
 
         match result {
-            ProbeResult::HttpError(status_code) => {
+            ProbeResult::Error(status_code) => {
                 assert_eq!(status_code, 420);
             }
             _ => panic!("Expected HTTP error probe result"),

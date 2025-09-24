@@ -386,6 +386,58 @@ pub mod exporters {
             json!({ "monitors": [serde_json::Value::Object(monitor)] })
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_cronitor_client_creation() {
+            let config = Config::default();
+            let client = Cronitor::new(config);
+            assert!(client.is_ok());
+        }
+
+        #[test]
+        fn test_cronitor_ping_url_construction_without_message() {
+            let config = Config::default();
+            let client = Cronitor::new(config).unwrap();
+
+            let url = client.build_ping_url(PingState::Run, 0, None);
+
+            assert!(url.contains("https://cronitor.link/test-monitor"));
+            assert!(url.contains("state=run"));
+            assert!(url.contains("status_code=0"));
+            assert!(url.contains("env=test"));
+            assert!(url.contains("series="));
+            assert!(url.contains("host="));
+            assert!(!url.contains("message="));
+        }
+
+        #[test]
+        fn test_cronitor_ping_url_construction_with_message() {
+            let config = Config::default();
+            let client = Cronitor::new(config).unwrap();
+
+            let url = client.build_ping_url(PingState::Fail, 500, Some("Test error"));
+
+            assert!(url.contains("https://cronitor.link/test-monitor"));
+            assert!(url.contains("state=fail"));
+            assert!(url.contains("status_code=500"));
+            assert!(url.contains("env=test"));
+            assert!(url.contains("message=Test%20error")); // URL encoded
+        }
+
+        #[test]
+        fn test_cronitor_ping_url_special_characters() {
+            let config = Config::default();
+            let client = Cronitor::new(config).unwrap();
+
+            let url = client.build_ping_url(PingState::Fail, 500, Some("Error: 500 & timeout!"));
+
+            assert!(url.contains("message=Error%3A%20500%20%26%20timeout%21"));
+        }
+    }
 }
 
 pub mod probes {
@@ -543,235 +595,417 @@ pub mod probes {
             }
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{super::Probe, *};
+        use httpmock::prelude::*;
+        use serde_json::json;
+
+        #[test]
+        fn test_openai_creation() {
+            let config = Config::default();
+            let probe = OpenAI::new(config);
+            assert!(probe.is_ok());
+        }
+
+        #[test]
+        fn test_openai_chat_endpoint_url() {
+            let config = Config {
+                endpoint_type: Type::OpenAIChatCompletion,
+                server_url: "https://api.openai.com".to_string(),
+                ..Default::default()
+            };
+            let probe = OpenAI::new(config).unwrap();
+
+            let url = probe.build_endpoint_url();
+            assert_eq!(url, "https://api.openai.com/v1/chat/completions");
+        }
+
+        #[test]
+        fn test_openai_embedding_endpoint_url() {
+            let config = Config {
+                endpoint_type: Type::OpenAIEmbedding,
+                server_url: "https://api.example.com".to_string(),
+                ..Default::default()
+            };
+            let probe = OpenAI::new(config).unwrap();
+
+            let url = probe.build_endpoint_url();
+            assert_eq!(url, "https://api.example.com/v1/embeddings");
+        }
+
+        #[test]
+        fn test_openai_chat_payload() {
+            let config = Config {
+                endpoint_type: Type::OpenAIChatCompletion,
+                model_name: "a-piece-of-cheese".to_string(),
+                ..Default::default()
+            };
+            let probe = OpenAI::new(config).unwrap();
+
+            let payload = probe.build_payload();
+            let expected = json!({
+                "model": "a-piece-of-cheese",
+                "messages": [{ "role": "user", "content": "test" }],
+                "max_tokens": 1,
+                "priority": -100
+            });
+
+            assert_eq!(payload, expected);
+        }
+
+        #[test]
+        fn test_openai_embedding_payload() {
+            let config = Config {
+                endpoint_type: Type::OpenAIEmbedding,
+                model_name: "text-embedding-ada-002".to_string(),
+                ..Default::default()
+            };
+            let probe = OpenAI::new(config).unwrap();
+
+            let payload = probe.build_payload();
+            let expected = json!({
+                "model": "text-embedding-ada-002",
+                "input": "test",
+                "priority": -100
+            });
+
+            assert_eq!(payload, expected);
+        }
+
+        #[tokio::test]
+        async fn test_openai_successful_response() {
+            let server = MockServer::start();
+
+            // Mock successful LLM response
+            let mock = server.mock(|when, then| {
+                when.method(POST)
+                    .path("/v1/chat/completions")
+                    .json_body(json!({
+                        "model": "gpt-4",
+                        "messages": [{ "role": "user", "content": "test" }],
+                        "max_tokens": 1,
+                        "priority": -100
+                    }));
+                then.status(200).json_body(json!({
+                    "choices": [{"message": {"role": "assistant", "content": "Hello"}}]
+                }));
+            });
+
+            let config = Config {
+                server_url: server.base_url(),
+                endpoint_type: Type::OpenAIChatCompletion,
+                model_name: "gpt-4".to_string(),
+                ..Default::default()
+            };
+
+            let probe = OpenAI::new(config).unwrap();
+            let result = probe.probe().await;
+
+            assert_eq!(result, ProbeResult::Success);
+
+            mock.assert();
+        }
+
+        #[tokio::test]
+        async fn test_openai_http_error_response() {
+            let server = MockServer::start();
+
+            // Mock failed LLM response
+            let mock = server.mock(|when, then| {
+                when.method(POST).path("/v1/embeddings");
+                then.status(420).json_body(json!({
+                    "error": {"message": "Internal server error"}
+                }));
+            });
+
+            let config = Config {
+                server_url: server.base_url(),
+                endpoint_type: Type::OpenAIEmbedding,
+                model_name: "text-embedding-ada-002".to_string(),
+                ..Default::default()
+            };
+
+            let probe = OpenAI::new(config).unwrap();
+            let result = probe.probe().await;
+
+            match result {
+                ProbeResult::Error(status_code) => {
+                    assert_eq!(status_code, 420);
+                }
+                _ => panic!("Expected HTTP error probe result"),
+            }
+
+            mock.assert();
+        }
+
+        #[tokio::test]
+        async fn test_openai_timeout() {
+            let config = Config {
+                server_url: "http://10.255.255.1:12345".to_string(), // Non-routable IP for timeout
+                timeout_seconds: 1,                                  // Very short timeout
+                ..Default::default()
+            };
+
+            let probe = OpenAI::new(config).unwrap();
+            let result = probe.probe().await;
+
+            assert!(matches!(result, ProbeResult::Timeout));
+        }
+
+        #[tokio::test]
+        async fn test_openai_network_error() {
+            let config = Config {
+                server_url: "http://localhost:99999".to_string(), // Invalid port
+                ..Default::default()
+            };
+
+            let probe = OpenAI::new(config).unwrap();
+            let result = probe.probe().await;
+
+            match result {
+                ProbeResult::NetworkError(error) => {
+                    assert!(!error.is_empty());
+                }
+                _ => panic!("Expected network error probe result"),
+            }
+        }
+
+        // Newman probe tests
+        use std::fs;
+        use tempfile::TempDir;
+
+        #[test]
+        fn test_newman_probe_creation() {
+            let config = Config {
+                endpoint_type: Type::Newman,
+                collection_path: "test-collection.json".to_string(),
+                environment_path: Some("test-environment.json".to_string()),
+                ..Default::default()
+            };
+            let probe = Newman::new(config);
+            assert!(probe.is_ok());
+        }
+
+        #[tokio::test]
+        async fn test_newman_probe_with_mock_endpoints() {
+            let server = MockServer::start();
+            let temp_dir = TempDir::new().unwrap();
+
+            // Mock the endpoints from our test collection
+            let health_mock = server.mock(|when, then| {
+                when.method(GET).path("/health");
+                then.status(200).json_body(json!({"status": "ok"}));
+            });
+
+            let user_mock = server.mock(|when, then| {
+                when.method(GET)
+                    .path("/api/v1/users/123")
+                    .header("Authorization", "Bearer test-token-12345");
+                then.status(200)
+                    .json_body(json!({"id": 123, "name": "Test User"}));
+            });
+
+            let create_mock = server.mock(|when, then| {
+                when.method(POST)
+                    .path("/api/v1/resources")
+                    .header("Authorization", "Bearer test-token-12345")
+                    .header("Content-Type", "application/json");
+                then.status(201).json_body(json!({
+                    "id": 789,
+                    "name": "Test Resource",
+                    "description": "Created at 1234567890",
+                    "active": true
+                }));
+            });
+
+            let delete_mock = server.mock(|when, then| {
+                when.method(DELETE)
+                    .path("/api/v1/resources/456")
+                    .header("Authorization", "Bearer test-token-12345");
+                then.status(204);
+            });
+
+            // Create test collection file with server base URL
+            let collection_path = temp_dir.path().join("collection.json");
+            let collection_content = fs::read_to_string("test-collection.json")
+                .unwrap_or_else(|_| include_str!("../test-collection.json").to_string());
+            fs::write(&collection_path, collection_content).unwrap();
+
+            // Create test environment file with mock server URL
+            let environment_path = temp_dir.path().join("environment.json");
+            let environment_content = json!({
+                "id": "test-env",
+                "name": "Test Environment",
+                "values": [
+                    {
+                        "key": "base_url",
+                        "value": server.base_url(),
+                        "enabled": true,
+                        "type": "default"
+                    },
+                    {
+                        "key": "api_token",
+                        "value": "test-token-12345",
+                        "enabled": true,
+                        "type": "secret"
+                    }
+                ],
+                "_postman_variable_scope": "environment"
+            });
+            fs::write(&environment_path, environment_content.to_string()).unwrap();
+
+            let config = Config {
+                endpoint_type: Type::Newman,
+                collection_path: collection_path.to_str().unwrap().to_string(),
+                environment_path: Some(environment_path.to_str().unwrap().to_string()),
+                ..Default::default()
+            };
+
+            let probe = Newman::new(config).unwrap();
+            let result = probe.probe().await;
+
+            // Newman should succeed if all tests pass
+            assert_eq!(result, ProbeResult::Success);
+
+            // Verify all endpoints were called
+            health_mock.assert();
+            user_mock.assert();
+            create_mock.assert();
+            delete_mock.assert();
+        }
+
+        #[tokio::test]
+        async fn test_newman_probe_with_failed_test() {
+            let server = MockServer::start();
+            let temp_dir = TempDir::new().unwrap();
+
+            // Mock health endpoint to return 500 (will fail the test)
+            let health_mock = server.mock(|when, then| {
+                when.method(GET).path("/health");
+                then.status(500).json_body(json!({"error": "Server error"}));
+            });
+
+            // Create a minimal collection with just the health check
+            let collection_path = temp_dir.path().join("collection.json");
+            let collection_content = json!({
+                "info": {
+                    "name": "Test Collection",
+                    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+                },
+                "item": [{
+                    "name": "Health Check",
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "exec": [
+                                "pm.test(\"Status code is 200\", function () {",
+                                "    pm.response.to.have.status(200);",
+                                "});"
+                            ],
+                            "type": "text/javascript"
+                        }
+                    }],
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/health"
+                    }
+                }]
+            });
+            fs::write(&collection_path, collection_content.to_string()).unwrap();
+
+            // Create environment file
+            let environment_path = temp_dir.path().join("environment.json");
+            let environment_content = json!({
+                "id": "test-env",
+                "name": "Test Environment",
+                "values": [{
+                    "key": "base_url",
+                    "value": server.base_url(),
+                    "enabled": true,
+                    "type": "default"
+                }],
+                "_postman_variable_scope": "environment"
+            });
+            fs::write(&environment_path, environment_content.to_string()).unwrap();
+
+            let config = Config {
+                endpoint_type: Type::Newman,
+                collection_path: collection_path.to_str().unwrap().to_string(),
+                environment_path: Some(environment_path.to_str().unwrap().to_string()),
+                ..Default::default()
+            };
+
+            let probe = Newman::new(config).unwrap();
+            let result = probe.probe().await;
+
+            // Newman should fail if any test fails
+            assert_eq!(result, ProbeResult::Error(1));
+
+            health_mock.assert();
+        }
+
+        #[tokio::test]
+        async fn test_newman_probe_without_environment() {
+            let server = MockServer::start();
+            let temp_dir = TempDir::new().unwrap();
+
+            // Mock endpoint without auth
+            let health_mock = server.mock(|when, then| {
+                when.method(GET).path("/health");
+                then.status(200).json_body(json!({"status": "ok"}));
+            });
+
+            // Create collection with hardcoded URL (no environment needed)
+            let collection_path = temp_dir.path().join("collection.json");
+            let collection_content = json!({
+                "info": {
+                    "name": "Test Collection",
+                    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+                },
+                "item": [{
+                    "name": "Health Check",
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "exec": [
+                                "pm.test(\"Status code is 200\", function () {",
+                                "    pm.response.to.have.status(200);",
+                                "});"
+                            ],
+                            "type": "text/javascript"
+                        }
+                    }],
+                    "request": {
+                        "method": "GET",
+                        "url": format!("{}/health", server.base_url())
+                    }
+                }]
+            });
+            fs::write(&collection_path, collection_content.to_string()).unwrap();
+
+            let config = Config {
+                endpoint_type: Type::Newman,
+                collection_path: collection_path.to_str().unwrap().to_string(),
+                environment_path: None, // No environment file
+                ..Default::default()
+            };
+
+            let probe = Newman::new(config).unwrap();
+            let result = probe.probe().await;
+
+            assert_eq!(result, ProbeResult::Success);
+            health_mock.assert();
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Export, Monitor, PingState, Probe, ProbeResult,
-        cli::Config,
-        exporters::Cronitor,
-        probes::{OpenAI, Type as EndpointType},
-    };
+    use super::{Monitor, cli::Config};
     use httpmock::prelude::*;
     use serde_json::json;
-
-    #[test]
-    fn test_cronitor_client_creation() {
-        let config = Config::default();
-        let client = Cronitor::new(config);
-        assert!(client.is_ok());
-    }
-
-    #[test]
-    fn test_cronitor_ping_url_construction_without_message() {
-        let config = Config::default();
-        let client = Cronitor::new(config).unwrap();
-
-        let url = client.build_ping_url(PingState::Run, 0, None);
-
-        assert!(url.contains("https://cronitor.link/test-monitor"));
-        assert!(url.contains("state=run"));
-        assert!(url.contains("status_code=0"));
-        assert!(url.contains("env=test"));
-        assert!(url.contains("series="));
-        assert!(url.contains("host="));
-        assert!(!url.contains("message="));
-    }
-
-    #[test]
-    fn test_cronitor_ping_url_construction_with_message() {
-        let config = Config::default();
-        let client = Cronitor::new(config).unwrap();
-
-        let url = client.build_ping_url(PingState::Fail, 500, Some("Test error"));
-
-        assert!(url.contains("https://cronitor.link/test-monitor"));
-        assert!(url.contains("state=fail"));
-        assert!(url.contains("status_code=500"));
-        assert!(url.contains("env=test"));
-        assert!(url.contains("message=Test%20error")); // URL encoded
-    }
-
-    #[test]
-    fn test_cronitor_ping_url_special_characters() {
-        let config = Config::default();
-        let client = Cronitor::new(config).unwrap();
-
-        let url = client.build_ping_url(PingState::Fail, 500, Some("Error: 500 & timeout!"));
-
-        assert!(url.contains("message=Error%3A%20500%20%26%20timeout%21"));
-    }
-
-    #[test]
-    fn test_llm_probe_creation() {
-        let config = Config::default();
-        let probe = OpenAI::new(config);
-        assert!(probe.is_ok());
-    }
-
-    #[test]
-    fn test_llm_probe_chat_endpoint_url() {
-        let config = Config {
-            endpoint_type: EndpointType::OpenAIChatCompletion,
-            server_url: "https://api.openai.com".to_string(),
-            ..Default::default()
-        };
-        let probe = OpenAI::new(config).unwrap();
-
-        let url = probe.build_endpoint_url();
-        assert_eq!(url, "https://api.openai.com/v1/chat/completions");
-    }
-
-    #[test]
-    fn test_llm_probe_embedding_endpoint_url() {
-        let config = Config {
-            endpoint_type: EndpointType::OpenAIEmbedding,
-            server_url: "https://api.example.com".to_string(),
-            ..Default::default()
-        };
-        let probe = OpenAI::new(config).unwrap();
-
-        let url = probe.build_endpoint_url();
-        assert_eq!(url, "https://api.example.com/v1/embeddings");
-    }
-
-    #[test]
-    fn test_llm_probe_chat_payload() {
-        let config = Config {
-            endpoint_type: EndpointType::OpenAIChatCompletion,
-            model_name: "a-piece-of-cheese".to_string(),
-            ..Default::default()
-        };
-        let probe = OpenAI::new(config).unwrap();
-
-        let payload = probe.build_payload();
-        let expected = json!({
-            "model": "a-piece-of-cheese",
-            "messages": [{ "role": "user", "content": "test" }],
-            "max_tokens": 1,
-            "priority": -100
-        });
-
-        assert_eq!(payload, expected);
-    }
-
-    #[test]
-    fn test_llm_probe_embedding_payload() {
-        let config = Config {
-            endpoint_type: EndpointType::OpenAIEmbedding,
-            model_name: "text-embedding-ada-002".to_string(),
-            ..Default::default()
-        };
-        let probe = OpenAI::new(config).unwrap();
-
-        let payload = probe.build_payload();
-        let expected = json!({
-            "model": "text-embedding-ada-002",
-            "input": "test",
-            "priority": -100
-        });
-
-        assert_eq!(payload, expected);
-    }
-
-    #[tokio::test]
-    async fn test_llm_probe_successful_response() {
-        let server = MockServer::start();
-
-        // Mock successful LLM response
-        let mock = server.mock(|when, then| {
-            when.method(POST)
-                .path("/v1/chat/completions")
-                .json_body(json!({
-                    "model": "gpt-4",
-                    "messages": [{ "role": "user", "content": "test" }],
-                    "max_tokens": 1,
-                    "priority": -100
-                }));
-            then.status(200).json_body(json!({
-                "choices": [{"message": {"role": "assistant", "content": "Hello"}}]
-            }));
-        });
-
-        let config = Config {
-            server_url: server.base_url(),
-            endpoint_type: EndpointType::OpenAIChatCompletion,
-            model_name: "gpt-4".to_string(),
-            ..Default::default()
-        };
-
-        let probe = OpenAI::new(config).unwrap();
-        let result = probe.probe().await;
-
-        assert_eq!(result, ProbeResult::Success);
-
-        mock.assert();
-    }
-
-    #[tokio::test]
-    async fn test_llm_probe_http_error_response() {
-        let server = MockServer::start();
-
-        // Mock failed LLM response
-        let mock = server.mock(|when, then| {
-            when.method(POST).path("/v1/embeddings");
-            then.status(420).json_body(json!({
-                "error": {"message": "Internal server error"}
-            }));
-        });
-
-        let config = Config {
-            server_url: server.base_url(),
-            endpoint_type: EndpointType::OpenAIEmbedding,
-            model_name: "text-embedding-ada-002".to_string(),
-            ..Default::default()
-        };
-
-        let probe = OpenAI::new(config).unwrap();
-        let result = probe.probe().await;
-
-        match result {
-            ProbeResult::Error(status_code) => {
-                assert_eq!(status_code, 420);
-            }
-            _ => panic!("Expected HTTP error probe result"),
-        }
-
-        mock.assert();
-    }
-
-    #[tokio::test]
-    async fn test_llm_probe_timeout() {
-        let config = Config {
-            server_url: "http://10.255.255.1:12345".to_string(), // Non-routable IP for timeout
-            timeout_seconds: 1,                                  // Very short timeout
-            ..Default::default()
-        };
-
-        let probe = OpenAI::new(config).unwrap();
-        let result = probe.probe().await;
-
-        assert!(matches!(result, ProbeResult::Timeout));
-    }
-
-    #[tokio::test]
-    async fn test_llm_probe_network_error() {
-        let config = Config {
-            server_url: "http://localhost:99999".to_string(), // Invalid port
-            ..Default::default()
-        };
-
-        let probe = OpenAI::new(config).unwrap();
-        let result = probe.probe().await;
-
-        match result {
-            ProbeResult::NetworkError(error) => {
-                assert!(!error.is_empty());
-            }
-            _ => panic!("Expected network error probe result"),
-        }
-    }
 
     #[tokio::test]
     async fn test_monitor_creation() {

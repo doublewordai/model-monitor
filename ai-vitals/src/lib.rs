@@ -199,6 +199,10 @@ pub mod cli {
         // Path to the Postman environment JSON file
         #[arg(long, env = "ENVIRONMENT_PATH", default_value = None)]
         pub environment_path: Option<String>,
+
+        // Delay request by N milliseconds to avoid hitting rate limits
+        #[arg(long, env = "REQUEST_DELAY_MILLISECONDS", default_value = None)]
+        pub request_delay_milliseconds: Option<u64>,
     }
 
     impl Default for Config {
@@ -219,6 +223,7 @@ pub mod cli {
                 consecutive_missing: Some(1),
                 collection_path: "collection.json".to_string(),
                 environment_path: None,
+                request_delay_milliseconds: None,
             }
         }
     }
@@ -562,8 +567,17 @@ pub mod probes {
 
             newman.arg("run").arg(&self.config.collection_path);
 
+            // Set timeout - timeout is in seconds, but newman expects milliseconds
+            newman
+                .arg("--timeout-request")
+                .arg((self.config.timeout_seconds * 1000).to_string());
+
+            // Optional args if set in config
             if let Some(env_path) = &self.config.environment_path {
                 newman.arg("-e").arg(env_path);
+            }
+            if let Some(delay) = self.config.request_delay_milliseconds {
+                newman.arg("--delay-request").arg(delay.to_string());
             }
 
             if let Ok(child) = newman

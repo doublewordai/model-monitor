@@ -4,11 +4,11 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  {{- $fullname := printf "%s-%s-%s" (include "openai-monitor.fullname" $) $endpoint.name $model.name }}
+  {{- $fullname := printf "%s-%s-%s" (include "model-monitor.fullname" $) $endpoint.name $model.name }}
   {{- $safeName := $fullname | replace "." "-" | replace "_" "-" | lower | trunc 63 | trimSuffix "-" }}
   name: {{ $safeName }}
   labels:
-    {{- include "openai-monitor.labels" $ | nindent 4 }}
+    {{- include "model-monitor.labels" $ | nindent 4 }}
     endpoint: {{ $endpoint.name }}
     model: {{ $model.name }}
 spec:
@@ -19,7 +19,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "openai-monitor.selectorLabels" $ | nindent 12 }}
+            {{- include "model-monitor.selectorLabels" $ | nindent 12 }}
             endpoint: {{ $endpoint.name }}
             model: {{ $model.name }}
         spec:
@@ -81,10 +81,50 @@ spec:
               - name: MONITOR_GROUP
                 value: {{ . | quote }}
               {{- end }}
+              {{- if $.Values.newman.configMap.enabled }}
+              - name: COLLECTION_PATH
+                value: "/app/collection.json"
+              {{- end }}
+              {{- if $.Values.newman.secret.enabled }}
+              - name: ENVIRONMENT_PATH
+                value: "/app/environment.json"
+              {{- end }}
+              {{- with $model.delayMilliseconds }}
+              - name: REQUEST_DELAY_MILLISECONDS
+                value: {{ . | quote }}
+              {{- end }}
             {{- with $.Values.cronJob.resources }}
             resources:
               {{- toYaml . | nindent 14 }}
             {{- end }}
+            {{- if or $.Values.newman.configMap.enabled $.Values.newman.secret.enabled }}
+            volumeMounts:
+            {{- if $.Values.newman.configMap.enabled }}
+              - name: newman-config
+                mountPath: /app/collection.json
+                subPath: {{ $model.collectionName }}
+                readOnly: true
+            {{- end }}
+            {{- if $.Values.newman.secret.enabled }}
+              - name: newman-secret
+                mountPath: /app/environment.json
+                subPath: {{ $model.environmentName }}
+                readOnly: true
+            {{- end }}
+            {{- end }}
+          {{- if or $.Values.newman.configMap.enabled $.Values.newman.secret.enabled }}
+          volumes:
+          {{- if $.Values.newman.configMap.enabled }}
+            - name: newman-config
+              configMap:
+                name: {{ include "model-monitor.fullname" $ }}
+          {{- end }}
+          {{- if $.Values.newman.secret.enabled }}
+            - name: newman-secret
+              secret:
+                secretName: {{ include "model-monitor.fullname" $ }}
+          {{- end }}
+          {{- end }}
           restartPolicy: {{ $.Values.cronJob.restartPolicy }}
 {{- end }}
 {{- end }}

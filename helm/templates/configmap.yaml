@@ -1,0 +1,13 @@
+{{- if .Values.newman.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "model-monitor.fullname" . }}
+  labels:
+    {{- include "model-monitor.labels" . | nindent 4 }}
+data:
+{{- range $fileName, $fileContent := .Values.newman.configMap.files }}
+  {{ $fileName }}: |
+{{ if kindIs "string" $fileContent }}{{ $fileContent | indent 4 }}{{ else }}{{ $fileContent | toJson | indent 4 }}{{ end }}
+{{- end }}
+{{- end }}

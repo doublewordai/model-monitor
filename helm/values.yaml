@@ -13,16 +13,30 @@ endpoints: []
   # - name: "onwards-service"
   #   url: "http://onwards-service"
   #   models: 
+  #       # OpenAI Embedding Example
   #     - name: "embed"
-  #       type: "embedding"
+  #       type: "openai-embedding"
   #       monitor: "my-embedding-model"  # Optional: cronitor monitor name
+  #     
+  #       # OpenAI Chat Completion example
   #     - name: "generate"
-  #       type: "chat"
+  #       type: "openai-chat-completion"
   #       monitor: "my-chat-model"  # Optional: cronitor monitor name
   #       monitorGroup: "group1" # Optional: group for monitor to go in
   #       consecutiveFailures: 1 # Optional: how many failed pings are needed to trigger an alert.
   #       consecutiveMissing: 1 # Optional: how many missing pings are needed to trigger an alert.
   #       minFreqRequiredMins: 60
+  #     
+  #       # Newman Example
+  #     - name: "newman"
+  #       type: "newman"
+  #       collectionName: "your-collection.json" # Optional: Name of the Newman collection file you want to use from the k8s ConfigMap created below
+  #       environmentName: "environment.json" # Optional: Name of the Newman environment file you want to use from the k8s Secret created below
+  #       delayMilliseconds: 1000 # Optional: Delay each request by N milliseconds to avoid rate limits
+  #       monitor: "my-api"  # Optional: cronitor monitor name
+  #       monitorGroup: "group1" # Optional: group for monitor to go in
+  #       consecutiveFailures: 1 # Optional: how many failed pings are needed to trigger an alert.
+  #       consecutiveMissing: 1 # Optional: how many missing pings are needed to trigger an alert.
 
 # minFreqRequiredMins catches inactive alerts - if an alert starts but never completes, it'll be marked as inactive by
 # Cronitor. To force this into raising an alert, we require a successful ping once per any minFreqRequiredMins period.
@@ -54,6 +68,40 @@ cronJob:
 # Kubernetes metadata
 nameOverride: ""
 fullnameOverride: ""
+
+# Newman configuration
+newman:
+  configMap:
+    enabled: false
+    # Files to include in the ConfigMap (populated from local files)
+    # Use: --set-file newman.configMap.files.collection\\.json=./path/to/your/collection.json
+    # Or add files directly in values:
+    files: {}
+      # collection.json: |
+      #   {
+      #     "info": {
+      #       "name": "Your Collection"
+      #     }
+      #   }
+
+  secret:
+    enabled: false
+    # Files to include in the Secret (populated from local files)
+    # Use: --set-file newman.secret.files.environment\\.json=./path/to/your/environment.json
+    # Or add files directly in values:
+    files: {}
+      # environment.json: |
+      #   {
+      #     "id": "environment-id",
+      #     "name": "Environment Name",
+      #     "values": [
+      #       {
+      #         "key": "api_key",
+      #         "value": "secret-api-key",
+      #         "type": "secret"
+      #       }
+      #     ]
+      #   }
 
 # Common labels
 commonLabels:

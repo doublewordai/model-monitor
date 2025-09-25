@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.3...model-monitor-v1.1.0) (2025-09-25)
+
+
+### Features
+
+* upgrade helm chart to configure newman probes in ai vitals ([#17](https://github.com/doublewordai/model-monitor/issues/17)) ([fa248a8](https://github.com/doublewordai/model-monitor/commit/fa248a8739dafbfe42e9ad68a764bdd91e97e59c))
+
 ## [1.0.3](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.2...model-monitor-v1.0.3) (2025-08-20)
 
 

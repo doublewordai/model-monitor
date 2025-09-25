@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.8.0...ai-vitals-v0.8.1) (2025-09-25)
+
+
+### Bug Fixes
+
+* add delay milliseconds and request timeout to newman probe ([#15](https://github.com/doublewordai/model-monitor/issues/15)) ([edc956b](https://github.com/doublewordai/model-monitor/commit/edc956bb3382f4263f3aa1ae907cb8cdd2b07814))
+
 ## [0.8.0](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.7.1...ai-vitals-v0.8.0) (2025-09-24)
 
 

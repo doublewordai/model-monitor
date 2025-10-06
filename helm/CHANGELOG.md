@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.1.0...model-monitor-v1.1.1) (2025-10-06)
+
+
+### Bug Fixes
+
+* add backoff and active deadline seconds to job spec ([#19](https://github.com/doublewordai/model-monitor/issues/19)) ([4505a9e](https://github.com/doublewordai/model-monitor/commit/4505a9e5e10441782be3515422b2e34e2fe8a17b))
+
 ## [1.1.0](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.0.3...model-monitor-v1.1.0) (2025-09-25)
 
 

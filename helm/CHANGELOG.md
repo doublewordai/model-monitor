@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.1.1...model-monitor-v1.1.2) (2025-10-06)
+
+
+### Bug Fixes
+
+* handle falsy in backoff job parameter ([#21](https://github.com/doublewordai/model-monitor/issues/21)) ([8279047](https://github.com/doublewordai/model-monitor/commit/82790471269c69920aa5b2dcac5caa1c343ee709))
+
 ## [1.1.1](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.1.0...model-monitor-v1.1.1) (2025-10-06)
 
 

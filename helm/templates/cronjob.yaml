@@ -15,6 +15,12 @@ spec:
   schedule: {{ $.Values.cronJob.schedule | quote }}
   jobTemplate:
     spec:
+      {{- with $.Values.cronJob.backoffLimit }}
+      backoffLimit: {{ . }}
+      {{- end }}
+      {{- with $.Values.cronJob.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ . }}
+      {{- end }}
       ttlSecondsAfterFinished: 300
       template:
         metadata:

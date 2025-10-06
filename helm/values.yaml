@@ -45,16 +45,29 @@ endpoints: []
 cronJob:
   # Schedule for all monitoring jobs (every 5 minutes)
   schedule: "*/5 * * * *"
-  
+
   # Container image
   image:
     repository: ghcr.io/doublewordai/model-monitor/ai-vitals
     tag: ""
     pullPolicy: "IfNotPresent"
-  
+
   # Job settings: if this is not never
   restartPolicy: "Never"
-  
+
+  # Pod retry behavior when failures occur
+  # backoffLimit: Number of retries before considering a Job as failed
+  # - Default (if unset): 6 retries with exponential backoff (10s, 20s, 40s, etc.)
+  # - For monitoring jobs, 0 is recommended since the CronJob will retry on the next schedule
+  # backoffLimit: 0
+
+  # activeDeadlineSeconds: Maximum time in seconds for the Job to run before being terminated
+  # - Prevents jobs from running indefinitely
+  # - Should be less than your cron schedule interval to avoid overlapping jobs
+  # - Example: For a 5-minute schedule (300s), set to 240s to ensure completion before next run
+  # - Uncomment and adjust based on your needs:
+  # activeDeadlineSeconds: 240
+
   # Resource limits/requests
   resources: {}
     # limits:

@@ -15,8 +15,8 @@ spec:
   schedule: {{ $.Values.cronJob.schedule | quote }}
   jobTemplate:
     spec:
-      {{- with $.Values.cronJob.backoffLimit }}
-      backoffLimit: {{ . }}
+      {{- if or (eq (toString $.Values.cronJob.backoffLimit) "0") $.Values.cronJob.backoffLimit }}
+      backoffLimit: {{ $.Values.cronJob.backoffLimit }}
       {{- end }}
       {{- with $.Values.cronJob.activeDeadlineSeconds }}
       activeDeadlineSeconds: {{ . }}

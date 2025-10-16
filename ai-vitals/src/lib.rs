@@ -175,13 +175,9 @@ pub mod cli {
         pub min_success_freq: Option<u8>,
 
         /// Which schedule to display in the frontend and to guide CONSECUTIVE_FAILURES_FOR_ALERT.
-        /// NOTE THAT THIS DOES NOT NECESSARILY MATCH THE CRONJOB SCHEDULE OWING TO TIMEZONE ISSUES.
+        /// If none, one isn't sent to cronitor but will still be running for a cronjob.
         #[arg(long, env = "SCHEDULE")]
         pub schedule: Option<String>,
-
-        /// Which timezone to evaluate the schedule under
-        #[arg(long, env = "SCHEDULE_TIMEZONE")]
-        pub schedule_timezone: Option<String>,
 
         /// How often we want to resend alerts after the first fails, integer in HOURS
         #[arg(long, env = "REALERT_INTERVAL")]
@@ -225,8 +221,7 @@ pub mod cli {
                 model_name: "gpt-4".to_string(),
                 env: "test".to_string(),
                 timeout_seconds: 10,
-                schedule: Option::from("*/5 * * * *".to_string()),
-                schedule_timezone: None,
+                schedule: None,
                 realert_interval: Some(9999),
                 consecutive_failures: Some(1),
                 min_success_freq: Some(60),
@@ -375,10 +370,6 @@ pub mod exporters {
 
             if let Some(schedule) = self.config.schedule.clone() {
                 monitor.insert("schedule".into(), json!(schedule));
-
-                if let Some(timezone) = self.config.schedule_timezone.clone() {
-                    monitor.insert("timezone".into(), json!(timezone));
-                }
             }
 
             if let Some(realert_interval) = self.config.realert_interval {

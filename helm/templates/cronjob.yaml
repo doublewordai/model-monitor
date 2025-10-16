@@ -71,14 +71,12 @@ spec:
               - name: MIN_SUCCESS_FREQ
                 value: {{ . | quote }}
               {{- end }}
-              {{- with (default $.Values.cronJob.schedule $model.schedule) }}
+
+              {{- if not $model.dontSendScheduleToCronitor }}
+              {{- with $.Values.cronJob.schedule }}
               - name: SCHEDULE
                 value: {{ . | quote }}
               {{- end }}
-
-              {{- with $model.scheduleTimezone }}
-              - name: SCHEDULE_TIMEZONE
-                value: {{ . | quote }}
               {{- end }}
 
               {{- with $model.realertInterval }}

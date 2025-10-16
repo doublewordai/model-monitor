@@ -48,6 +48,10 @@ cronJob:
   # Schedule for all monitoring jobs (every 5 minutes)
   schedule: "*/5 * * * *"
 
+  # Can also provide as a list for more complex schedules, a new cronjob will be made for each.
+  # schedules:
+  #   - "*/5 * * * *"
+
   # Container image
   image:
     repository: ghcr.io/doublewordai/model-monitor/ai-vitals

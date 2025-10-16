@@ -1,18 +1,41 @@
 {{- range $endpoint := .Values.endpoints }}
-{{- range $model := $endpoint.models }}
+  {{- range $model := $endpoint.models }}
+
+  {{/* Normalize schedule/schedules into a single list */}}
+  {{- $schedules := list }}
+  {{- if $.Values.cronJob.schedules }}
+  {{/* If 'schedules' key exists, use it */}}
+  {{- $schedules = $.Values.cronJob.schedules }}
+  {{- else if $.Values.cronJob.schedule }}
+  {{/* If 'schedule' key exists, convert to single-item list */}}
+  {{- $schedules = list $.Values.cronJob.schedule }}
+  {{- else }}
+  {{/* Default fallback if neither is provided */}}
+  {{- fail "Either cronJob.schedule or cronJob.schedules must be defined" }}
+  {{- end }}
+
+  {{/* Create a CronJob for each schedule */}}
+  {{- range $index, $schedule := $schedules }}
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   {{- $fullname := printf "%s-%s-%s" (include "model-monitor.fullname" $) $endpoint.name $model.name }}
-  {{- $safeName := $fullname | replace "." "-" | replace "_" "-" | lower | trunc 63 | trimSuffix "-" }}
-  name: {{ $safeName }}
-  labels:
-    {{- include "model-monitor.labels" $ | nindent 4 }}
-    endpoint: {{ $endpoint.name }}
-    model: {{ $model.name }}
+    {{- if gt (len $schedules) 1 }}
+    {{/* Add suffix for multiple schedules */}}
+    {{- $fullname = printf "%s-%d" $fullname $index }}
+    {{- end }}
+    {{- $safeName := $fullname | replace "." "-" | replace "_" "-" | lower | trunc 63 | trimSuffix "-" }}
+    name: {{ $safeName }}
+    labels:
+      {{- include "model-monitor.labels" $ | nindent 4 }}
+      endpoint: {{ $endpoint.name }}
+      model: {{ $model.name }}
+      {{- if gt (len $schedules) 1 }}
+      schedule-index: "{{ $index }}"
+      {{- end }}
 spec:
-  schedule: {{ $.Values.cronJob.schedule | quote }}
+  schedule: {{ $schedule | quote }}
   jobTemplate:
     spec:
       {{- if or (eq (toString $.Values.cronJob.backoffLimit) "0") $.Values.cronJob.backoffLimit }}
@@ -30,116 +53,115 @@ spec:
             model: {{ $model.name }}
         spec:
           containers:
-          - name: monitor
-            image: {{ $.Values.cronJob.image.repository }}:{{ $.Values.cronJob.image.tag | default $.Chart.AppVersion }}
-            imagePullPolicy: {{ $.Values.cronJob.image.pullPolicy }}
-            env:
-              - name: SERVER_URL
-                value: {{ $endpoint.url | quote }}
-              - name: CRONITOR_BASE_URL
-                valueFrom:
-                  secretKeyRef:
-                    name: {{ required "telemetry.secretName is required" $.Values.telemetry.secretName | quote }}
-                    key: cronitor-url
-              {{- with $.Values.telemetry.secretName }}
-              - name: CRONITOR_API_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: {{ . | quote }}
-                    key: cronitor-api-key
-                    optional: true
-              {{- end }}
-              - name: MONITOR_NAME
-                value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.name) | quote }}
-              {{- with $model.type }}
-              - name: ENDPOINT_TYPE
-                value: {{ . | quote }}
-              {{- end }}
-              {{- with $model.name }}
-              - name: MODEL_NAME
-                value: {{ . | quote }}
-              {{- end }}
-              {{- with $model.env }}
-              - name: APP_ENV
-                value: {{ . | quote }}
-              {{- end }}
-              {{- with $model.timeoutSeconds }}
-              - name: TIMEOUT_SECONDS
-                value: {{ . | quote }}
-              {{- end }}
-              {{- with $model.minFreqRequiredMins }}
-              - name: MIN_SUCCESS_FREQ
-                value: {{ . | quote }}
-              {{- end }}
+            - name: monitor
+              image: {{ $.Values.cronJob.image.repository }}:{{ $.Values.cronJob.image.tag | default $.Chart.AppVersion }}
+              imagePullPolicy: {{ $.Values.cronJob.image.pullPolicy }}
+              env:
+                - name: SERVER_URL
+                  value: {{ $endpoint.url | quote }}
+                - name: CRONITOR_BASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ required "telemetry.secretName is required" $.Values.telemetry.secretName | quote }}
+                      key: cronitor-url
+                {{- with $.Values.telemetry.secretName }}
+                - name: CRONITOR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ . | quote }}
+                      key: cronitor-api-key
+                      optional: true
+                {{- end }}
+                - name: MONITOR_NAME
+                  value: {{ $model.monitor | default (printf "%s-%s" $endpoint.name $model.name) | quote }}
+                {{- with $model.type }}
+                - name: ENDPOINT_TYPE
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- with $model.name }}
+                - name: MODEL_NAME
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- with $model.env }}
+                - name: APP_ENV
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- with $model.timeoutSeconds }}
+                - name: TIMEOUT_SECONDS
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- with $model.minFreqRequiredMins }}
+                - name: MIN_SUCCESS_FREQ
+                  value: {{ . | quote }}
+                {{- end }}
 
-              {{- if not $model.dontSendScheduleToCronitor }}
-              {{- with $.Values.cronJob.schedule }}
-              - name: SCHEDULE
-                value: {{ . | quote }}
-              {{- end }}
-              {{- end }}
+                {{- if not $model.dontSendScheduleToCronitor }}
+                - name: SCHEDULE
+                  value: {{ $schedule | quote }}
+                {{- end }}
 
-              {{- with $model.realertInterval }}
-              - name: REALERT_INTERVAL
-                value: {{ . | quote }}
-              {{- end }}
+                {{- with $model.realertInterval }}
+                - name: REALERT_INTERVAL
+                  value: {{ . | quote }}
+                {{- end }}
 
-              {{- with $model.consecutiveFailures }}
-              - name: CONSECUTIVE_FAILURES_FOR_ALERT
-                value: {{ . | quote }}
+                {{- with $model.consecutiveFailures }}
+                - name: CONSECUTIVE_FAILURES_FOR_ALERT
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- with $model.consecutiveMissing }}
+                - name: CONSECUTIVE_MISSING_FOR_ALERT
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- with $model.monitorGroup }}
+                - name: MONITOR_GROUP
+                  value: {{ . | quote }}
+                {{- end }}
+                {{- if $.Values.newman.configMap.enabled }}
+                - name: COLLECTION_PATH
+                  value: "/app/collection.json"
+                {{- end }}
+                {{- if $.Values.newman.secret.enabled }}
+                - name: ENVIRONMENT_PATH
+                  value: "/app/environment.json"
+                {{- end }}
+                {{- with $model.delayMilliseconds }}
+                - name: REQUEST_DELAY_MILLISECONDS
+                  value: {{ . | quote }}
+                {{- end }}
+              {{- with $.Values.cronJob.resources }}
+              resources:
+                {{- toYaml . | nindent 14 }}
               {{- end }}
-              {{- with $model.consecutiveMissing }}
-              - name: CONSECUTIVE_MISSING_FOR_ALERT
-                value: {{ . | quote }}
-              {{- end }}
-              {{- with $model.monitorGroup }}
-              - name: MONITOR_GROUP
-                value: {{ . | quote }}
-              {{- end }}
+              {{- if or $.Values.newman.configMap.enabled $.Values.newman.secret.enabled }}
+              volumeMounts:
               {{- if $.Values.newman.configMap.enabled }}
-              - name: COLLECTION_PATH
-                value: "/app/collection.json"
-              {{- end }}
-              {{- if $.Values.newman.secret.enabled }}
-              - name: ENVIRONMENT_PATH
-                value: "/app/environment.json"
-              {{- end }}
-              {{- with $model.delayMilliseconds }}
-              - name: REQUEST_DELAY_MILLISECONDS
-                value: {{ . | quote }}
-              {{- end }}
-            {{- with $.Values.cronJob.resources }}
-            resources:
-              {{- toYaml . | nindent 14 }}
-            {{- end }}
-            {{- if or $.Values.newman.configMap.enabled $.Values.newman.secret.enabled }}
-            volumeMounts:
-            {{- if $.Values.newman.configMap.enabled }}
               - name: newman-config
                 mountPath: /app/collection.json
                 subPath: {{ $model.collectionName }}
                 readOnly: true
-            {{- end }}
-            {{- if $.Values.newman.secret.enabled }}
+              {{- end }}
+              {{- if $.Values.newman.secret.enabled }}
               - name: newman-secret
                 mountPath: /app/environment.json
                 subPath: {{ $model.environmentName }}
                 readOnly: true
-            {{- end }}
-            {{- end }}
+              {{- end }}
+              {{- end }}
           {{- if or $.Values.newman.configMap.enabled $.Values.newman.secret.enabled }}
           volumes:
           {{- if $.Values.newman.configMap.enabled }}
-            - name: newman-config
-              configMap:
-                name: {{ include "model-monitor.fullname" $ }}
+          - name: newman-config
+            configMap:
+              name: {{ include "model-monitor.fullname" $ }}
           {{- end }}
           {{- if $.Values.newman.secret.enabled }}
-            - name: newman-secret
-              secret:
-                secretName: {{ include "model-monitor.fullname" $ }}
+          - name: newman-secret
+            secret:
+              secretName: {{ include "model-monitor.fullname" $ }}
           {{- end }}
           {{- end }}
           restartPolicy: {{ $.Values.cronJob.restartPolicy }}
-{{- end }}
-{{- end }}
+  {{- end }}
+  {{- end }}
+  {{- end }}

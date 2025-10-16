@@ -175,8 +175,13 @@ pub mod cli {
         pub min_success_freq: Option<u8>,
 
         /// Which schedule to display in the frontend and to guide CONSECUTIVE_FAILURES_FOR_ALERT.
+        /// If none, one isn't sent to cronitor but will still be running for a cronjob.
         #[arg(long, env = "SCHEDULE")]
         pub schedule: Option<String>,
+
+        /// How often we want to resend alerts after the first fails, integer in HOURS
+        #[arg(long, env = "REALERT_INTERVAL")]
+        pub realert_interval: Option<u16>,
 
         /// Optional: how many failed pings are needed to trigger an alert. Cronitor assumes 1 if unset.
         #[arg(long, env = "CONSECUTIVE_FAILURES_FOR_ALERT")]
@@ -216,7 +221,8 @@ pub mod cli {
                 model_name: "gpt-4".to_string(),
                 env: "test".to_string(),
                 timeout_seconds: 10,
-                schedule: Option::from("*/5 * * * *".to_string()),
+                schedule: None,
+                realert_interval: Some(9999),
                 consecutive_failures: Some(1),
                 min_success_freq: Some(60),
                 monitor_group: None,
@@ -364,6 +370,10 @@ pub mod exporters {
 
             if let Some(schedule) = self.config.schedule.clone() {
                 monitor.insert("schedule".into(), json!(schedule));
+            }
+
+            if let Some(realert_interval) = self.config.realert_interval {
+                monitor.insert("realert_interval".into(), json!(realert_interval));
             }
 
             if let (Some(consecutive_missing), Some(_)) = (

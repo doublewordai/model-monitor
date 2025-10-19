@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vitals - Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .controls label {
+            margin-right: 10px;
+            font-weight: 500;
+        }
+
+        .controls select, .controls button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .controls button {
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            border: none;
+            margin-left: 10px;
+        }
+
+        .controls button:hover {
+            background: #2980b9;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-card.uptime .value {
+            color: #27ae60;
+        }
+
+        .stat-card.failures .value {
+            color: #e74c3c;
+        }
+
+        .results-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #34495e;
+            color: white;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody tr.data-row {
+            cursor: pointer;
+        }
+
+        tbody tr.data-row:hover {
+            background: #e8f4f8;
+        }
+
+        tr.expanded-row {
+            background: #f8f9fa;
+        }
+
+        tr.expanded-row td {
+            padding: 20px 15px;
+        }
+
+        .probe-details {
+            max-width: 100%;
+        }
+
+        .probe-details h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .event-timeline {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .event-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .event-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .event-dot.run {
+            background: #3498db;
+        }
+
+        .event-dot.complete {
+            background: #27ae60;
+        }
+
+        .event-dot.fail {
+            background: #e74c3c;
+        }
+
+        .event-line {
+            flex: 1;
+            height: 2px;
+            background: #ddd;
+        }
+
+        .event-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .event-time {
+            font-size: 10px;
+            color: #95a5a6;
+        }
+
+        .expand-icon {
+            display: inline-block;
+            margin-right: 5px;
+            transition: transform 0.2s;
+        }
+
+        tr.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.run {
+            background: #3498db;
+            color: white;
+        }
+
+        .badge.complete {
+            background: #27ae60;
+            color: white;
+        }
+
+        .badge.fail {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .timestamp {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .message {
+            color: #e74c3c;
+            font-style: italic;
+            font-size: 13px;
+        }
+
+        .uptime-graph {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .uptime-graph h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+
+        .timeline-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .timeline-spacer {
+            width: 50px;
+        }
+
+        .timeline {
+            display: flex;
+            gap: 2px;
+            height: 40px;
+            align-items: stretch;
+            background: #f0f0f0;
+            padding: 2px;
+            border-radius: 4px;
+            flex: 1;
+        }
+
+        .timeline-item {
+            flex: 1;
+            min-width: 4px;
+            max-width: 20px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            height: 100%;
+        }
+
+        .timeline-item:hover {
+            transform: scaleY(1.2);
+        }
+
+        .timeline-item.success,
+        .timeline-item.complete {
+            background: #27ae60;
+        }
+
+        .timeline-item.fail {
+            background: #e74c3c;
+        }
+
+        .timeline-item.run {
+            background: #3498db;
+        }
+
+        .timeline-legend {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            color: #7f8c8d;
+            align-items: center;
+        }
+
+        .timeline-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .timeline-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .timeline-legend-dot.complete {
+            background: #27ae60;
+        }
+
+        .timeline-legend-dot.fail {
+            background: #e74c3c;
+        }
+
+        .performance-graph {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .performance-graph h2 {
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+
+        .performance-chart-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .performance-y-axis {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            width: 50px;
+            height: 120px;
+            padding: 10px 0;
+            font-size: 11px;
+            color: #7f8c8d;
+            text-align: right;
+            padding-right: 8px;
+        }
+
+        .performance-chart-wrapper {
+            flex: 1;
+            border-left: 2px solid #34495e;
+            padding-left: 10px;
+        }
+
+        .performance-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 120px;
+            padding: 10px 0 5px 0;
+        }
+
+        .performance-timeline {
+            display: flex;
+            gap: 3px;
+            padding: 5px 0;
+            border-bottom: 2px solid #34495e;
+        }
+
+        .performance-timeline-item {
+            flex: 1;
+            min-width: 4px;
+            max-width: 20px;
+            height: 20px;
+            border-radius: 2px;
+        }
+
+        .performance-timeline-item.complete {
+            background: #27ae60;
+        }
+
+        .performance-timeline-item.fail {
+            background: #e74c3c;
+        }
+
+        .performance-x-axis {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 5px;
+            font-size: 10px;
+            color: #7f8c8d;
+        }
+
+        .performance-bar {
+            flex: 1;
+            min-width: 4px;
+            max-width: 20px;
+            background: #3498db;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            position: relative;
+            border-radius: 2px 2px 0 0;
+        }
+
+        .performance-bar.slow {
+            background: #e67e22;
+        }
+
+        .performance-bar.very-slow {
+            background: #e74c3c;
+        }
+
+        .performance-bar:hover {
+            opacity: 0.7;
+        }
+
+        .performance-legend {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            color: #7f8c8d;
+            align-items: center;
+        }
+
+        .performance-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .performance-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .performance-legend-dot.fast {
+            background: #3498db;
+        }
+
+        .performance-legend-dot.slow {
+            background: #e67e22;
+        }
+
+        .performance-legend-dot.very-slow {
+            background: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Vitals - Monitoring Dashboard</h1>
+
+        <div class="controls">
+            <label for="monitor-select">Monitor:</label>
+            <select id="monitor-select">
+                <option value="">All Monitors</option>
+            </select>
+            <button onclick="refreshData()">Refresh</button>
+            <span style="margin-left: 20px; color: #7f8c8d;" id="last-updated"></span>
+        </div>
+
+        <div id="error-message" style="display: none;" class="error"></div>
+
+        <div class="performance-graph">
+            <h2>Probe Performance & History (Last 100 Probes)</h2>
+            <div class="performance-chart-container">
+                <div class="performance-y-axis" id="performance-y-axis"></div>
+                <div class="performance-chart-wrapper">
+                    <div class="performance-chart" id="performance-chart"></div>
+                    <div class="performance-timeline" id="performance-timeline"></div>
+                    <div class="performance-x-axis" id="performance-x-axis"></div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 30px; margin-top: 15px;">
+                <div class="performance-legend">
+                    <strong style="margin-right: 10px;">Performance:</strong>
+                    <div class="performance-legend-item">
+                        <div class="performance-legend-dot fast"></div>
+                        <span>&lt; 2s</span>
+                    </div>
+                    <div class="performance-legend-item">
+                        <div class="performance-legend-dot slow"></div>
+                        <span>2-5s</span>
+                    </div>
+                    <div class="performance-legend-item">
+                        <div class="performance-legend-dot very-slow"></div>
+                        <span>&gt; 5s</span>
+                    </div>
+                </div>
+                <div class="timeline-legend">
+                    <strong style="margin-right: 10px;">Status:</strong>
+                    <div class="timeline-legend-item">
+                        <div class="timeline-legend-dot complete"></div>
+                        <span>Success</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="timeline-legend-dot fail"></div>
+                        <span>Failure</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card uptime">
+                <h3>Uptime (24h)</h3>
+                <div class="value" id="uptime">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Probes (24h)</h3>
+                <div class="value" id="total-probes">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Successful</h3>
+                <div class="value" id="successful">-</div>
+            </div>
+            <div class="stat-card failures">
+                <h3>Failures</h3>
+                <div class="value" id="failures">-</div>
+            </div>
+        </div>
+
+        <div class="results-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Monitor</th>
+                        <th>Endpoint</th>
+                        <th>Model</th>
+                        <th>Result</th>
+                        <th>Status</th>
+                        <th>Message</th>
+                        <th>Environment</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body">
+                    <tr>
+                        <td colspan="8" class="loading">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let currentMonitor = '';
+
+        async function loadMonitors() {
+            try {
+                const response = await fetch('/api/monitors');
+                const monitors = await response.json();
+
+                const select = document.getElementById('monitor-select');
+                monitors.forEach(monitor => {
+                    const option = document.createElement('option');
+                    option.value = monitor;
+                    option.textContent = monitor;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                showError('Failed to load monitors: ' + error.message);
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const url = currentMonitor
+                    ? `/api/stats?monitor_name=${encodeURIComponent(currentMonitor)}`
+                    : '/api/stats';
+
+                const response = await fetch(url);
+                const stats = await response.json();
+
+                document.getElementById('uptime').textContent = stats.uptime_pct.toFixed(2) + '%';
+                document.getElementById('total-probes').textContent = stats.total_probes;
+                document.getElementById('successful').textContent = stats.successful_probes;
+                document.getElementById('failures').textContent = stats.failed_probes;
+            } catch (error) {
+                showError('Failed to load stats: ' + error.message);
+            }
+        }
+
+        async function loadResults() {
+            try {
+                const url = currentMonitor
+                    ? `/api/results?monitor_name=${encodeURIComponent(currentMonitor)}&limit=100`
+                    : '/api/results?limit=100';
+
+                const response = await fetch(url);
+                const results = await response.json();
+
+                // Update combined performance chart
+                updatePerformanceChart(results);
+
+                const tbody = document.getElementById('results-body');
+                tbody.innerHTML = '';
+
+                if (results.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="loading">No results found</td></tr>';
+                    return;
+                }
+
+                results.forEach(result => {
+                    const row = document.createElement('tr');
+                    row.className = 'data-row';
+                    row.dataset.seriesId = result.series_id;
+
+                    const timestamp = new Date(result.timestamp);
+                    const timeStr = timestamp.toLocaleString();
+
+                    row.innerHTML = `
+                        <td class="timestamp"><span class="expand-icon">▶</span>${timeStr}</td>
+                        <td>${result.monitor_name}</td>
+                        <td>${result.endpoint_url}</td>
+                        <td>${result.model_name}</td>
+                        <td><span class="badge ${result.state}">${result.state}</span></td>
+                        <td>${result.status_code || '-'}</td>
+                        <td class="message">${result.message || '-'}</td>
+                        <td>${result.environment}</td>
+                    `;
+
+                    row.addEventListener('click', () => toggleProbeDetails(row, result.series_id));
+
+                    tbody.appendChild(row);
+                });
+
+                document.getElementById('last-updated').textContent =
+                    'Last updated: ' + new Date().toLocaleTimeString();
+            } catch (error) {
+                showError('Failed to load results: ' + error.message);
+            }
+        }
+
+        function updateTimeline(results) {
+            const timeline = document.getElementById('timeline');
+
+            if (!timeline) {
+                console.error('Timeline element not found!');
+                return;
+            }
+
+            timeline.innerHTML = '';
+
+            if (results.length === 0) {
+                timeline.innerHTML = '<div style="color: #7f8c8d; padding: 10px;">No data available</div>';
+                return;
+            }
+
+            // Reverse to show oldest to newest (left to right)
+            const reversed = [...results].reverse();
+
+            reversed.forEach((result) => {
+                const item = document.createElement('div');
+                item.className = `timeline-item ${result.state}`;
+
+                const timestamp = new Date(result.timestamp);
+                const timeStr = timestamp.toLocaleString();
+
+                const statusLabel = result.state === 'complete' ? 'SUCCESS' : 'FAILURE';
+                item.title = `${statusLabel}\n${timeStr}\n${result.monitor_name}\nStatus: ${result.status_code || 'N/A'}${result.message ? '\n' + result.message : ''}`;
+
+                timeline.appendChild(item);
+            });
+        }
+
+        function updatePerformanceChart(results) {
+            const chart = document.getElementById('performance-chart');
+            const timeline = document.getElementById('performance-timeline');
+            const xAxis = document.getElementById('performance-x-axis');
+            const yAxis = document.getElementById('performance-y-axis');
+
+            if (!chart || !timeline || !xAxis || !yAxis) {
+                console.error('Performance chart elements not found!');
+                return;
+            }
+
+            chart.innerHTML = '';
+            timeline.innerHTML = '';
+            xAxis.innerHTML = '';
+            yAxis.innerHTML = '';
+
+            if (results.length === 0) {
+                chart.innerHTML = '<div style="color: #7f8c8d; padding: 10px;">No data available</div>';
+                return;
+            }
+
+            // Filter out results without duration (failed probes)
+            const withDuration = results.filter(r => r.duration_ms != null);
+
+            if (withDuration.length === 0) {
+                chart.innerHTML = '<div style="color: #7f8c8d; padding: 10px;">No duration data available</div>';
+                return;
+            }
+
+            // Find max duration for scaling
+            const maxDuration = Math.max(...withDuration.map(r => r.duration_ms));
+            const maxDurationSec = maxDuration / 1000;
+
+            // Create y-axis labels (5 labels from max to 0)
+            const numLabels = 5;
+            for (let i = 0; i < numLabels; i++) {
+                const label = document.createElement('div');
+                const value = maxDurationSec * (1 - i / (numLabels - 1));
+                label.textContent = value.toFixed(1) + 's';
+                yAxis.appendChild(label);
+            }
+
+            // Reverse to show oldest to newest (left to right)
+            const reversed = [...withDuration].reverse();
+
+            // Create performance bars and timeline items
+            reversed.forEach((result, index) => {
+                // Performance bar
+                const bar = document.createElement('div');
+                const durationMs = result.duration_ms;
+                const durationSec = durationMs / 1000;
+
+                // Scale height (max height is 120px from CSS)
+                const heightPercent = (durationMs / maxDuration) * 100;
+                bar.style.height = `${heightPercent}%`;
+
+                // Color based on duration
+                let className = 'performance-bar';
+                if (durationSec > 5) {
+                    className += ' very-slow';
+                } else if (durationSec > 2) {
+                    className += ' slow';
+                }
+                bar.className = className;
+
+                const timestamp = new Date(result.timestamp);
+                const timeStr = timestamp.toLocaleString();
+
+                bar.title = `${timeStr}\n${result.monitor_name}\nDuration: ${durationSec.toFixed(2)}s`;
+
+                chart.appendChild(bar);
+
+                // Timeline item (success/failure indicator)
+                const timelineItem = document.createElement('div');
+                timelineItem.className = `performance-timeline-item ${result.state}`;
+                timelineItem.title = `${result.state.toUpperCase()}\n${timeStr}`;
+                timeline.appendChild(timelineItem);
+            });
+
+            // Create x-axis labels (show first, middle, and last timestamps)
+            if (reversed.length > 0) {
+                const firstTime = new Date(reversed[0].timestamp).toLocaleTimeString();
+                const lastTime = new Date(reversed[reversed.length - 1].timestamp).toLocaleTimeString();
+
+                const firstLabel = document.createElement('div');
+                firstLabel.textContent = firstTime;
+                xAxis.appendChild(firstLabel);
+
+                if (reversed.length > 2) {
+                    const midIndex = Math.floor(reversed.length / 2);
+                    const midTime = new Date(reversed[midIndex].timestamp).toLocaleTimeString();
+                    const midLabel = document.createElement('div');
+                    midLabel.textContent = midTime;
+                    xAxis.appendChild(midLabel);
+                }
+
+                const lastLabel = document.createElement('div');
+                lastLabel.textContent = lastTime;
+                xAxis.appendChild(lastLabel);
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        async function toggleProbeDetails(row, seriesId) {
+            // Check if already expanded
+            const existingExpandedRow = row.nextElementSibling;
+            if (existingExpandedRow && existingExpandedRow.classList.contains('expanded-row')) {
+                // Collapse
+                row.classList.remove('expanded');
+                existingExpandedRow.remove();
+                return;
+            }
+
+            // Expand
+            row.classList.add('expanded');
+
+            // Create expanded row
+            const expandedRow = document.createElement('tr');
+            expandedRow.className = 'expanded-row';
+            expandedRow.innerHTML = `
+                <td colspan="8">
+                    <div class="probe-details">
+                        <h4>Probe Lifecycle</h4>
+                        <div class="event-timeline" id="event-timeline-${seriesId}">
+                            <div style="color: #7f8c8d;">Loading...</div>
+                        </div>
+                    </div>
+                </td>
+            `;
+
+            row.parentNode.insertBefore(expandedRow, row.nextSibling);
+
+            // Fetch probe details
+            try {
+                const response = await fetch(`/api/probe-details?series_id=${encodeURIComponent(seriesId)}`);
+                const events = await response.json();
+
+                const timelineDiv = document.getElementById(`event-timeline-${seriesId}`);
+                timelineDiv.innerHTML = '';
+
+                events.forEach((event, index) => {
+                    const eventItem = document.createElement('div');
+                    eventItem.className = 'event-item';
+
+                    const timestamp = new Date(event.timestamp);
+                    const timeStr = timestamp.toLocaleTimeString();
+
+                    eventItem.innerHTML = `
+                        <div class="event-dot ${event.state}"></div>
+                        <div class="event-label">${event.state}</div>
+                        <div class="event-time">${timeStr}</div>
+                    `;
+
+                    timelineDiv.appendChild(eventItem);
+
+                    // Add line between events (except after the last one)
+                    if (index < events.length - 1) {
+                        const line = document.createElement('div');
+                        line.className = 'event-line';
+                        timelineDiv.appendChild(line);
+                    }
+                });
+            } catch (error) {
+                showError('Failed to load probe details: ' + error.message);
+            }
+        }
+
+        async function refreshData() {
+            await Promise.all([loadStats(), loadResults()]);
+        }
+
+        // Event listeners
+        document.getElementById('monitor-select').addEventListener('change', (e) => {
+            currentMonitor = e.target.value;
+            refreshData();
+        });
+
+        // Initial load
+        loadMonitors();
+        refreshData();
+
+        // Auto-refresh every 10 seconds
+        setInterval(refreshData, 10000);
+    </script>
+</body>
+</html>

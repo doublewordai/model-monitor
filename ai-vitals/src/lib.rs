@@ -1,13 +1,14 @@
 //! # ai-vitals
 //!
-//! A monitoring tool for LLM endpoints that reports status to Cronitor.
+//! A monitoring tool for LLM endpoints that reports status to exporters.
 //!
 //! The library is split into a few main components:
 //!
 //! * monitor: Entrypoint for running the monitoring process. It orchestrates the probing of endpoints and exporting results.
 //! * cli: Handles command-line argument parsing and configuration setup.
 //! * probes: Contains implementations for probing different types of endpoints, such as OpenAI chat completions and embeddings.
-//! * exporters: Contains implementations for exporting monitoring results to different services, currently only Cronitor.
+//! * exporters: Contains implementations for exporting monitoring results to different services (Cronitor, Postgres).
+//! * web: Web dashboard for viewing monitoring results (when web feature is enabled).
 //!
 //! ## Running Tests
 //!
@@ -16,6 +17,9 @@
 //! ```
 use anyhow::Result;
 use tracing::{error, info};
+
+#[cfg(feature = "web")]
+pub mod web;
 
 /// Result of an LLM endpoint probe
 #[derive(Debug, PartialEq)]
@@ -57,7 +61,7 @@ pub trait Export {
     fn new(config: cli::Config) -> Result<Self>
     where
         Self: std::marker::Sized;
-    async fn ping(&self, state: PingState, status_code: u16, message: Option<&str>);
+    async fn ping(&self, series_id: &str, state: PingState, status_code: u16, message: Option<&str>);
 }
 
 /// Main monitoring orchestrator.
@@ -70,51 +74,99 @@ pub struct Monitor {
 
 impl Monitor {
     pub fn new(config: cli::Config) -> Result<Self> {
-        Ok(Monitor {
-            exporter: Box::new(exporters::Cronitor::new(config.clone())?),
-            probe: match config.endpoint_type {
-                probes::Type::OpenAIChatCompletion | probes::Type::OpenAIEmbedding => {
-                    Box::new(probes::OpenAI::new(config.clone())?)
-                }
-                probes::Type::Newman => Box::new(probes::Newman::new(config.clone())?),
-            },
-        })
+        let exporter: Box<dyn Export> = match config.exporter_type {
+            cli::ExporterType::Cronitor => Box::new(exporters::Cronitor::new(config.clone())?),
+            #[cfg(feature = "postgres")]
+            cli::ExporterType::Postgres => Box::new(exporters::Postgres::new(config.clone())?),
+        };
+
+        let probe: Box<dyn Probe> = match config.endpoint_type {
+            probes::Type::OpenAIChatCompletion | probes::Type::OpenAIEmbedding => {
+                Box::new(probes::OpenAI::new(config.clone())?)
+            }
+            probes::Type::Newman => Box::new(probes::Newman::new(config.clone())?),
+        };
+
+        Ok(Monitor { exporter, probe })
     }
 
+    /// Run the monitor once and return exit code
     pub async fn run(&self) -> i32 {
+        use chrono::Utc;
+
+        // Generate a unique series_id for this probe run
+        let series_id = format!("{}-{}", Utc::now().timestamp_micros(), std::process::id());
+        info!("Starting probe with series ID: {series_id}");
+
         // Send start ping
-        info!("Sending start ping to Cronitor");
-        self.exporter.ping(PingState::Run, 0, None).await;
+        info!("Sending start ping to exporter");
+        self.exporter.ping(&series_id, PingState::Run, 0, None).await;
 
         // Probe the endpoint
         match self.probe.probe().await {
             ProbeResult::Success => {
-                info!("Sending success ping to Cronitor");
-                self.exporter.ping(PingState::Complete, 0, None).await;
+                info!("Sending success ping to exporter");
+                self.exporter.ping(&series_id, PingState::Complete, 0, None).await;
                 info!("SUCCESS: Endpoint responded successfully");
                 0
             }
             ProbeResult::Error(status_code) => {
-                info!("Sending failure ping to Cronitor");
-                self.exporter.ping(PingState::Fail, status_code, None).await;
+                info!("Sending failure ping to exporter");
+                self.exporter.ping(&series_id, PingState::Fail, status_code, None).await;
                 error!("FAILURE: Endpoint failed with HTTP {status_code}");
                 1
             }
             ProbeResult::Timeout => {
-                info!("Sending timeout ping to Cronitor");
+                info!("Sending timeout ping to exporter");
                 self.exporter
-                    .ping(PingState::Fail, 124, Some("Request timeout"))
+                    .ping(&series_id, PingState::Fail, 124, Some("Request timeout"))
                     .await;
                 error!("TIMEOUT: Request timed out");
                 124
             }
             ProbeResult::NetworkError(error) => {
-                info!("Sending failure ping to Cronitor");
+                info!("Sending failure ping to exporter");
                 self.exporter
-                    .ping(PingState::Fail, 1, Some(&format!("Network error: {error}")))
+                    .ping(&series_id, PingState::Fail, 1, Some(&format!("Network error: {error}")))
                     .await;
                 error!("FAILURE: Network error: {error}");
                 1
+            }
+        }
+    }
+
+    /// Run the monitor continuously on an interval
+    ///
+    /// This method will run forever, executing probes at the specified interval.
+    /// Use this for library usage where you want continuous monitoring.
+    pub async fn run_continuous(&self, interval_seconds: u64) -> Result<()> {
+        use tokio::time::{Duration, sleep};
+
+        info!("Starting continuous monitoring with interval of {interval_seconds}s");
+
+        loop {
+            let start = tokio::time::Instant::now();
+
+            // Run one probe cycle
+            let exit_code = self.run().await;
+
+            if exit_code != 0 {
+                info!("Probe completed with exit code {exit_code}");
+            }
+
+            // Calculate how long to sleep
+            let elapsed = start.elapsed();
+            let interval_duration = Duration::from_secs(interval_seconds);
+
+            if elapsed < interval_duration {
+                let sleep_duration = interval_duration - elapsed;
+                info!(
+                    "Sleeping for {}s until next probe",
+                    sleep_duration.as_secs()
+                );
+                sleep(sleep_duration).await;
+            } else {
+                info!("Probe took longer than interval, running immediately");
             }
         }
     }
@@ -125,32 +177,44 @@ pub mod cli {
 
     use super::probes::Type as ProbeType;
 
+    /// Type of exporter to use
+    #[derive(Debug, Clone, Copy, PartialEq, clap::ValueEnum)]
+    pub enum ExporterType {
+        #[value(name = "cronitor")]
+        Cronitor,
+        #[cfg(feature = "postgres")]
+        #[value(name = "postgres")]
+        Postgres,
+    }
+
+    impl Default for ExporterType {
+        fn default() -> Self {
+            ExporterType::Cronitor
+        }
+    }
+
+    impl From<ExporterType> for clap::builder::OsStr {
+        fn from(value: ExporterType) -> Self {
+            match value {
+                ExporterType::Cronitor => "cronitor".into(),
+                #[cfg(feature = "postgres")]
+                ExporterType::Postgres => "postgres".into(),
+            }
+        }
+    }
+
     /// Configuration for the monitoring tool
     #[derive(Parser, Debug, Clone, PartialEq)]
-    #[command(
-        author,
-        version,
-        about,
-        long_about = "Probe an LLM endpoint and report status to Cronitor."
-    )]
     pub struct Config {
-        /// Base URL for Cronitor, e.g. https://cronitor.link
-        #[arg(long, env = "CRONITOR_BASE_URL")]
-        pub cronitor_base_url: String,
-
-        /// Base URL for Cronitor, e.g. https://cronitor.link
-        #[arg(long, env = "CRONITOR_API_KEY")]
-        pub cronitor_api_key: Option<String>,
-
-        /// Monitor name / code in Cronitor
+        /// Monitor name / code
         #[arg(long, env = "MONITOR_NAME")]
         pub monitor_name: String,
 
         /// Base URL of the server to probe, e.g. https://my-openai-proxy
-        #[arg(long, env = "SERVER_URL", default_value = "http://localhost:8000/v1")]
+        #[arg(long, env = "SERVER_URL")]
         pub server_url: String,
 
-        /// Optional: Probe type to use for the probe. Currently only "llm" is supported.
+        /// Optional: Probe type to use for the probe.
         #[arg(long, env = "ENDPOINT_TYPE", default_value = ProbeType::OpenAIChatCompletion)]
         pub endpoint_type: ProbeType,
 
@@ -166,7 +230,30 @@ pub mod cli {
         #[arg(long, env = "TIMEOUT_SECONDS", default_value_t = 10)]
         pub timeout_seconds: u64,
 
-        /// The below all require an API key to be set to take effect.
+        /// Interval in seconds for continuous monitoring (0 = run once and exit)
+        #[arg(long, env = "INTERVAL_SECONDS", default_value_t = 0)]
+        pub interval_seconds: u64,
+
+        /// Type of exporter to use (cronitor or postgres)
+        #[arg(long, env = "EXPORTER_TYPE", default_value = ExporterType::Cronitor)]
+        pub exporter_type: ExporterType,
+
+        /// Database URL (required when exporter_type is postgres)
+        /// Supports PostgreSQL (postgresql://...) and SQLite (sqlite:...)
+        #[cfg(feature = "postgres")]
+        #[arg(long, env = "DATABASE_URL")]
+        pub database_url: Option<String>,
+
+        /// Cronitor settings
+        /// Base URL for Cronitor, e.g. https://cronitor.link
+        #[arg(long, env = "CRONITOR_BASE_URL")]
+        pub cronitor_base_url: Option<String>,
+
+        /// Cronitor API key for monitor enrichment
+        #[arg(long, env = "CRONITOR_API_KEY")]
+        pub cronitor_api_key: Option<String>,
+
+        /// The below all require a cronitor API key to be set to take effect.
 
         /// minFreqRequiredMins catches inactive alerts - if an alert starts but never completes,
         /// it'll be marked as inactive by Cronitor. To force this into raising an alert,
@@ -208,14 +295,18 @@ pub mod cli {
     impl Default for Config {
         fn default() -> Self {
             Config {
-                cronitor_base_url: "https://cronitor.link".to_string(),
+                exporter_type: ExporterType::Cronitor,
+                cronitor_base_url: Some("https://cronitor.link".to_string()),
                 cronitor_api_key: None,
+                #[cfg(feature = "postgres")]
+                database_url: None,
                 monitor_name: "test-monitor".to_string(),
                 server_url: "https://api.openai.com".to_string(),
                 endpoint_type: ProbeType::OpenAIChatCompletion,
                 model_name: "gpt-4".to_string(),
                 env: "test".to_string(),
                 timeout_seconds: 10,
+                interval_seconds: 0,
                 schedule: Option::from("*/5 * * * *".to_string()),
                 consecutive_failures: Some(1),
                 min_success_freq: Some(60),
@@ -247,33 +338,33 @@ pub mod exporters {
         config: Config,
         client: Client,
         host: String,
-        series_id: String,
     }
 
     /// Cronitor exporter implementation
     #[async_trait::async_trait]
     impl Export for Cronitor {
         fn new(config: Config) -> Result<Self> {
+            // Validate that cronitor_base_url is provided
+            if config.cronitor_base_url.is_none() {
+                anyhow::bail!("cronitor_base_url is required when using Cronitor exporter");
+            }
+
             let client = Client::builder()
                 .timeout(Duration::from_secs(config.timeout_seconds))
                 .build()
                 .context("building reqwest client")?;
 
             let host = get().unwrap_or_default().to_string_lossy().into_owned();
-            let series_id = format!("{}-{}", Utc::now().timestamp(), std::process::id());
-
-            info!("Starting job with series ID: {series_id}");
 
             Ok(Cronitor {
                 config,
                 client,
                 host,
-                series_id,
             })
         }
 
-        async fn ping(&self, state: PingState, status_code: u16, message: Option<&str>) {
-            let url = self.build_ping_url(state, status_code, message);
+        async fn ping(&self, series_id: &str, state: PingState, status_code: u16, message: Option<&str>) {
+            let url = self.build_ping_url(series_id, state, status_code, message);
 
             match self.client.get(&url).send().await {
                 Ok(resp) if resp.status().is_success() => {
@@ -332,16 +423,22 @@ pub mod exporters {
     impl Cronitor {
         pub fn build_ping_url(
             &self,
+            series_id: &str,
             state: PingState,
             status_code: u16,
             message: Option<&str>,
         ) -> String {
+            let base_url = self
+                .config
+                .cronitor_base_url
+                .as_ref()
+                .expect("cronitor_base_url should be validated in new()");
             let mut url = format!(
                 "{}/{}?state={}&series={}&status_code={}&env={}&host={}",
-                self.config.cronitor_base_url,
+                base_url,
                 self.config.monitor_name,
                 state.as_str(),
-                self.series_id,
+                series_id,
                 status_code,
                 self.config.env,
                 self.host
@@ -389,6 +486,70 @@ pub mod exporters {
             monitor.insert("assertions".into(), json!(assertions));
 
             json!({ "monitors": [serde_json::Value::Object(monitor)] })
+        }
+    }
+
+    #[cfg(feature = "postgres")]
+    /// Postgres exporter for writing monitoring results to a PostgreSQL database
+    pub struct Postgres {
+        pool: sqlx::PgPool,
+        config: Config,
+    }
+
+    #[cfg(feature = "postgres")]
+    #[async_trait::async_trait]
+    impl Export for Postgres {
+        fn new(config: Config) -> Result<Self> {
+            // Note: We can't create the pool synchronously here since PgPool::connect is async.
+            // We'll use PgPoolOptions::connect_lazy() which creates the pool lazily.
+            let database_url = config
+                .database_url
+                .as_ref()
+                .context("database_url is required when using Postgres exporter")?;
+
+            let pool = sqlx::postgres::PgPoolOptions::new()
+                .max_connections(5)
+                .connect_lazy(database_url)
+                .context("creating postgres connection pool")?;
+
+            Ok(Postgres {
+                pool,
+                config,
+            })
+        }
+
+        async fn ping(&self, series_id: &str, state: PingState, status_code: u16, message: Option<&str>) {
+            let timestamp = Utc::now();
+            let state_str = state.as_str();
+
+            let result = sqlx::query(
+                r#"
+                INSERT INTO monitoring_results
+                    (timestamp, monitor_name, endpoint_url, model_name, state, status_code, message, series_id, environment)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                "#,
+            )
+            .bind(timestamp)
+            .bind(&self.config.monitor_name)
+            .bind(&self.config.server_url)
+            .bind(&self.config.model_name)
+            .bind(state_str)
+            .bind(status_code as i32)
+            .bind(message)
+            .bind(series_id)
+            .bind(&self.config.env)
+            .execute(&self.pool)
+            .await;
+
+            match result {
+                Ok(_) => {
+                    info!("Successfully wrote monitoring result to Postgres");
+                }
+                Err(e) => {
+                    error!("Failed to write to Postgres: {e}");
+                }
+            }
         }
     }
 
@@ -525,9 +686,9 @@ pub mod probes {
         pub fn build_endpoint_url(&self) -> String {
             match self.config.endpoint_type {
                 Type::OpenAIChatCompletion => {
-                    format!("{}/v1/chat/completions", self.config.server_url)
+                    format!("{}/chat/completions", self.config.server_url)
                 }
-                Type::OpenAIEmbedding => format!("{}/v1/embeddings", self.config.server_url),
+                Type::OpenAIEmbedding => format!("{}/embeddings", self.config.server_url),
                 _ => panic!("Unsupported endpoint type"),
             }
         }

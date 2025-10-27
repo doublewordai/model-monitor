@@ -79,20 +79,20 @@ telemetry:
 The default schedule runs every 5 minutes. Customize in `values.yaml`:
 
 ```yaml
-cronJob:
+endpoints:
   schedule: "*/5 * * * *"
 ```
 
 ## Values
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `endpoints` | List of OpenAI-compatible endpoints to monitor | `[]` |
-| `cronJob.schedule` | Cron schedule for monitoring jobs | `"*/5 * * * *"` |
+| Parameter                  | Description | Default |
+|----------------------------|-------------|---------|
+| `endpoints`                | List of OpenAI-compatible endpoints to monitor | `[]` |
+| `endpoint.schedule(s)`     | Cron schedule for monitoring jobs | `"*/5 * * * *"` |
 | `cronJob.image.repository` | Container image repository | `"curlimages/curl"` |
-| `cronJob.image.tag` | Container image tag | `"latest"` |
-| `cronJob.resources` | Resource limits and requests | `{}` |
-| `telemetry.url` | Telemetry URL configuration (value or valueFrom) | `valueFrom.secretKeyRef` |
+| `cronJob.image.tag`        | Container image tag | `"latest"` |
+| `cronJob.resources`        | Resource limits and requests | `{}` |
+| `telemetry.url`            | Telemetry URL configuration (value or valueFrom) | `valueFrom.secretKeyRef` |
 
 ## Monitoring
 

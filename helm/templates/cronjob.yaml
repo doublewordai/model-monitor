@@ -3,15 +3,15 @@
 
   {{/* Normalize schedule/schedules into a single list */}}
   {{- $schedules := list }}
-  {{- if $.Values.cronJob.schedules }}
+  {{- if $endpoint.schedules }}
   {{/* If 'schedules' key exists, use it */}}
-  {{- $schedules = $.Values.cronJob.schedules }}
-  {{- else if $.Values.cronJob.schedule }}
+  {{- $schedules = $endpoint.schedules }}
+  {{- else if $endpoint.schedule }}
   {{/* If 'schedule' key exists, convert to single-item list */}}
-  {{- $schedules = list $.Values.cronJob.schedule }}
+  {{- $schedules = list $endpoint.schedule }}
   {{- else }}
   {{/* Default fallback if neither is provided */}}
-  {{- fail "Either cronJob.schedule or cronJob.schedules must be defined" }}
+  {{- fail "Either endpoint.schedule or endpoint.schedules must be defined" }}
   {{- end }}
 
   {{/* Create a CronJob for each schedule */}}

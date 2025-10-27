@@ -1,5 +1,4 @@
 {{- range $endpoint := .Values.endpoints }}
-  {{- range $model := $endpoint.models }}
 
   {{/* Normalize schedule/schedules into a single list */}}
   {{- $schedules := list }}
@@ -16,6 +15,8 @@
 
   {{/* Create a CronJob for each schedule */}}
   {{- range $index, $schedule := $schedules }}
+
+  {{- range $model := $endpoint.models }}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -95,7 +96,7 @@ spec:
                   value: {{ . | quote }}
                 {{- end }}
 
-                {{- if not $model.dontSendScheduleToCronitor }}
+                {{- if not $endpoint.schedules }} # Cronitor can't handle more than one schedule, so don't forward.
                 - name: SCHEDULE
                   value: {{ $schedule | quote }}
                 {{- end }}

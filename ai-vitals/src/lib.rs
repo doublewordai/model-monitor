@@ -171,6 +171,7 @@ pub mod cli {
         /// minFreqRequiredMins catches inactive alerts - if an alert starts but never completes,
         /// it'll be marked as inactive by Cronitor. To force this into raising an alert,
         /// we require a successful ping once per any minFreqRequiredMins period.
+        /// Beware - this can cause some unpredictable behaviour in Cronitor
         #[arg(long, env = "MIN_SUCCESS_FREQ")]
         pub min_success_freq: Option<u8>,
 

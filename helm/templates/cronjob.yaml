@@ -13,7 +13,7 @@
   {{- fail "Either endpoint.schedule or endpoint.schedules must be defined" }}
   {{- end }}
 
-  {{/* Create a CronJob for each schedule */}}
+  {{/* Create a new CronJob for each schedule */}}
   {{- range $index, $schedule := $schedules }}
 
   {{- range $model := $endpoint.models }}

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.1.2...model-monitor-v1.2.0) (2025-10-28)
+
+
+### Features
+
+* update helm chart to handle multiple schedules ([6b1fc53](https://github.com/doublewordai/model-monitor/commit/6b1fc53c83c99ae856eac72f15b038e3205d66e6))
+
 ## [1.1.2](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.1.1...model-monitor-v1.1.2) (2025-10-06)
 
 

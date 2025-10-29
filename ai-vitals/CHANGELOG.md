@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.8.1...ai-vitals-v0.9.0) (2025-10-28)
+
+
+### Features
+
+* allow multiple schedules ([9076d47](https://github.com/doublewordai/model-monitor/commit/9076d47c6dacaeff49eed6b9c2a9de843f6d18e3))
+
 ## [0.8.1](https://github.com/doublewordai/model-monitor/compare/ai-vitals-v0.8.0...ai-vitals-v0.8.1) (2025-09-25)
 
 

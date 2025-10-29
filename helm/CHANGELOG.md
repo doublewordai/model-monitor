@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.2.0...model-monitor-v1.2.1) (2025-10-29)
+
+
+### Bug Fixes
+
+* indentation ([a56c29b](https://github.com/doublewordai/model-monitor/commit/a56c29b756311c92d3af0de7a3cbf8e817b4b696))
+
 ## [1.2.0](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.1.2...model-monitor-v1.2.0) (2025-10-28)
 
 

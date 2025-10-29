@@ -22,19 +22,19 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   {{- $fullname := printf "%s-%s-%s" (include "model-monitor.fullname" $) $endpoint.name $model.name }}
+  {{- if gt (len $schedules) 1 }}
+  {{/* Add suffix for multiple schedules */}}
+  {{- $fullname = printf "%s-%d" $fullname $index }}
+  {{- end }}
+  {{- $safeName := $fullname | replace "." "-" | replace "_" "-" | lower | trunc 63 | trimSuffix "-" }}
+  name: {{ $safeName }}
+  labels:
+    {{- include "model-monitor.labels" $ | nindent 4 }}
+    endpoint: {{ $endpoint.name }}
+    model: {{ $model.name }}
     {{- if gt (len $schedules) 1 }}
-    {{/* Add suffix for multiple schedules */}}
-    {{- $fullname = printf "%s-%d" $fullname $index }}
+    schedule-index: "{{ $index }}"
     {{- end }}
-    {{- $safeName := $fullname | replace "." "-" | replace "_" "-" | lower | trunc 63 | trimSuffix "-" }}
-    name: {{ $safeName }}
-    labels:
-      {{- include "model-monitor.labels" $ | nindent 4 }}
-      endpoint: {{ $endpoint.name }}
-      model: {{ $model.name }}
-      {{- if gt (len $schedules) 1 }}
-      schedule-index: "{{ $index }}"
-      {{- end }}
 spec:
   schedule: {{ $schedule | quote }}
   jobTemplate:

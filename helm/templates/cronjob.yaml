@@ -132,7 +132,7 @@ spec:
                 {{- end }}
               {{- with $.Values.cronJob.resources }}
               resources:
-                {{- toYaml . | nindent 14 }}
+                {{- toYaml . | nindent 16 }}
               {{- end }}
               {{- if or $.Values.newman.configMap.enabled $.Values.newman.secret.enabled }}
               volumeMounts:

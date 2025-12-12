@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.2.1...model-monitor-v1.2.2) (2025-12-12)
+
+
+### Bug Fixes
+
+* adjust indentation for cron job resources ([d41d6f5](https://github.com/doublewordai/model-monitor/commit/d41d6f587b7e14d1b7d6776e12cec58267d70d48))
+
 ## [1.2.1](https://github.com/doublewordai/model-monitor/compare/model-monitor-v1.2.0...model-monitor-v1.2.1) (2025-10-29)
 
 
